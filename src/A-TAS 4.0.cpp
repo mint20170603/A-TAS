@@ -3,7 +3,7 @@
 // 本辅助工具目前版本使用的键控注入框架应使用AvZ2 2.9.0 20260224版本，源码不保证对更旧版本AvZ的兼容性
 
 #define UNICODE
-#define A_TAS_VERSION 202603120248
+#define A_TAS_VERSION 202603120330
 #include "AsmFunc.h"
 #include "Draw.h"
 #include "asm_insert_code/asm_insert_code.h"
@@ -1403,7 +1403,7 @@ protected:
                 float col = p->CobTargetAbscissa() / 80.0f - 0.5;
                 int Offset = MarkerList[{row + 1, int(col) + 1}] % 4 * 15;
                 fightInfoPainter.Draw(ARect(MyColToX(int(col) + 1) + 4, MyRowToY(row + 1, int(col) + 1) + 9 + Offset, 72, 14), settings.PMarkerARGB, settings.MarkerDuration);
-                fightInfoPainter.Draw(AText(std::format("{:<4}  {:02}", Now.time + 1, (p->CobTargetAbscissa()) % 80 * 125 / 100), MyColToX(int(col) + 1) + 3, MyRowToY(row + 1, int(col) + 1) + 5 + Offset), 0xFFFFFFFF, 0x0, settings.MarkerDuration);
+                fightInfoPainter.Draw(AText(std::format("{:<4}  {:02}", Now.time, (p->CobTargetAbscissa()) % 80 * 125 / 100), MyColToX(int(col) + 1) + 3, MyRowToY(row + 1, int(col) + 1) + 5 + Offset), 0xFFFFFFFF, 0x0, settings.MarkerDuration);
                 fightInfoPainter.Draw(AText(std::format("{}.", ((p->CobTargetAbscissa()) / 80) < 10 ? std::format("{}", (p->CobTargetAbscissa()) / 80) : "X"), MyColToX(int(col) + 1) + 44, MyRowToY(row + 1, int(col) + 1) + 5 + Offset), 0xFFFFFFFF, 0x0, settings.MarkerDuration);
                 ++MarkerList[{row + 1, int(col) + 1}];
             }
