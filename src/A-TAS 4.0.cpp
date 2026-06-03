@@ -1384,37 +1384,68 @@ void DrawIndex() {
     }
 }
 
-static std::unordered_map<AGrid, int> MarkerList;
 class ActivationMarker : public ATickRunnerWithNoStart, public AOrderedEnterFightHook<-1> {
 protected:
-    int textDuration;
-    std::unordered_set<AProjectile*> projectiles;
+    struct Info {
+        ATime begin;
+        AGrid grid;
+        int stackIndex;
+        uint32_t argb;
+        std::string mainText;
+        std::string colText;
+    };
 
-    void CobProjectile() {
-        if (!settings.ActivationTime)
+    inline static ActivationMarker* instance = nullptr;
+    std::deque<Info> infos;
+
+    int Clock(const ATime& time) {
+        if (time.wave <= 1)
+            return time.time;
+        int idx = time.wave - 1;
+        return 0 <= idx && idx < int(WaveClock.size()) && WaveClock[idx] ? WaveClock[idx] + time.time : INT_MIN;
+    }
+
+    void Prune(const ATime& now) {
+        if (settings.MarkerDuration <= 0) {
+            infos.clear();
             return;
-        std::unordered_set<AProjectile*> currentProjectiles;
-        for (auto& p : AObjSelector(&AProjectile::Type, 11)) {
-            currentProjectiles.insert(&p);
         }
-        for (auto p : projectiles) {
-            if (!currentProjectiles.contains(p)) {
-                int row = p->CobTargetRow();
-                float col = p->CobTargetAbscissa() / 80.0f - 0.5;
-                int Offset = MarkerList[{row + 1, int(col) + 1}] % 4 * 15;
-                fightInfoPainter.Draw(ARect(MyColToX(int(col) + 1) + 4, MyRowToY(row + 1, int(col) + 1) + 9 + Offset, 72, 14), settings.PMarkerARGB, settings.MarkerDuration);
-                fightInfoPainter.Draw(AText(std::format("{:<4}  {:02}", Now.time, (p->CobTargetAbscissa()) % 80 * 125 / 100), MyColToX(int(col) + 1) + 3, MyRowToY(row + 1, int(col) + 1) + 5 + Offset), 0xFFFFFFFF, 0x0, settings.MarkerDuration);
-                fightInfoPainter.Draw(AText(std::format("{}.", ((p->CobTargetAbscissa()) / 80) < 10 ? std::format("{}", (p->CobTargetAbscissa()) / 80) : "X"), MyColToX(int(col) + 1) + 44, MyRowToY(row + 1, int(col) + 1) + 5 + Offset), 0xFFFFFFFF, 0x0, settings.MarkerDuration);
-                ++MarkerList[{row + 1, int(col) + 1}];
+        auto elapsed = [this, now](const Info& info) {
+            int beginClock = Clock(info.begin), nowClock = Clock(now);
+            if (info.begin.wave == now.wave && (beginClock == INT_MIN || nowClock == INT_MIN))
+                beginClock = info.begin.time, nowClock = now.time;
+            return beginClock != INT_MIN && nowClock != INT_MIN ? nowClock - beginClock : (now.wave < info.begin.wave ? -1 : settings.MarkerDuration);
+        };
+        while (!infos.empty() && elapsed(infos.back()) < 0)
+            infos.pop_back();
+        while (!infos.empty() && elapsed(infos.front()) >= settings.MarkerDuration)
+            infos.pop_front();
+    }
+
+    void Add(const AGrid& grid, uint32_t argb, std::string mainText, std::string colText) {
+        if (AGetMainObject() == nullptr)
+            return;
+        Prune(Now);
+        if (settings.MarkerDuration <= 0)
+            return;
+        bool used[4] = {};
+        int sameGridCount = 0;
+        for (const auto& info : infos) {
+            if (info.grid == grid) {
+                used[info.stackIndex % 4] = true;
+                ++sameGridCount;
             }
         }
-        projectiles = std::move(currentProjectiles);
+        int stackIndex = sameGridCount;
+        for (int i = 0; i < 4; ++i)
+            if (!used[i]) {
+                stackIndex = i;
+                break;
+            }
+        infos.push_back({Now, grid, stackIndex, argb, std::move(mainText), std::move(colText)});
     }
-    virtual void _EnterFight() override {
-        projectiles.clear();
-        for (auto& lst : MarkerList)
-            lst.second = 0;
-    }
+
+    virtual void _EnterFight() override {infos.clear();}
 
     // void Plant::DoSpecial()
     static void __stdcall AsmCallBack0x4666A0(AAsmCodeContext* context) {
@@ -1436,11 +1467,13 @@ protected:
         auto colors = plant_colors.find(static_cast<APlantType>(plant->Type()));
         if (colors == plant_colors.end())
             return;
-        int Offset = MarkerList[{plant->Row() + 1, plant->Col() + 1}] % 4 * 15;
-        fightInfoPainter.Draw(ARect(plant->Xi() + 4, plant->Yi() + 9 + Offset, 72, 14), colors->second, settings.MarkerDuration);
-        fightInfoPainter.Draw(AText(std::format("{:<4}  00", Now.time + 1), plant->Xi() + 3, plant->Yi() + 5 + Offset), 0xFFFFFFFF, 0x0, settings.MarkerDuration);
-        fightInfoPainter.Draw(AText(std::format("{}.", plant->Col() + 1), plant->Xi() + 44, plant->Yi() + 5 + Offset), 0xFFFFFFFF, 0x0, settings.MarkerDuration);
-        ++MarkerList[{plant->Row() + 1, plant->Col() + 1}];
+        if (!instance)
+            return;
+        instance->Add(
+            AGrid(plant->Row() + 1, plant->Col() + 1), colors->second, 
+            std::format("{:<4}  00", Now.time + 1), 
+            std::format("{}.", plant->Col() + 1)
+        );
     }
 
     // void Plant::DoSquashDamage()
@@ -1450,21 +1483,56 @@ protected:
         APlant* plant = *(APlant**)(context->esp + 4);
         if (!plant)
             return;
-        int Offset = MarkerList[{plant->Row() + 1, plant->Col() + 1}] % 4 * 15;
-        fightInfoPainter.Draw(ARect(MyColToX(plant->Col() + 1) + 4, MyRowToY(plant->Row() + 1, plant->Col() + 1) + 9 + Offset, 72, 14), settings.WMarkerARGB, settings.MarkerDuration);
-        fightInfoPainter.Draw(AText(std::format("{:<4}  {:02}", Now.time + 1, (plant->Abscissa() + 40) % 80 * 125 / 100), MyColToX(plant->Col() + 1) + 3, MyRowToY(plant->Row() + 1, plant->Col() + 1) + 5 + Offset), 0xFFFFFFFF, 0x0, settings.MarkerDuration);
-        fightInfoPainter.Draw(AText(std::format("{}.", ((plant->Abscissa() + 40) / 80) < 10 ? std::format("{}", (plant->Abscissa() + 40) / 80) : "X"), MyColToX(plant->Col() + 1) + 44, MyRowToY(plant->Row() + 1, plant->Col() + 1) + 5 + Offset), 0xFFFFFFFF, 0x0, settings.MarkerDuration);
-        ++MarkerList[{plant->Row() + 1, plant->Col() + 1}];
+        int abscissa = plant->Abscissa() + 40, col = abscissa / 80;
+        if (!instance)
+            return;
+        instance->Add(
+            AGrid(plant->Row() + 1, plant->Col() + 1), settings.WMarkerARGB, 
+            std::format("{:<4}  {:02}", Now.time + 1, abscissa % 80 * 125 / 100), 
+            col < 10 ? std::format("{}.", col) : "X."
+        );
+    }
+
+    // void Projectile::UpdateLobMotion()
+    // mBoard->KillAllZombiesInRadius(mRow, mPosX + 80, mPosY + 40, 115, 1, true, mDamageRangeFlags);
+    static void __stdcall AsmCallBack0x46D85B(AAsmCodeContext* context) {
+        if (!settings.ActivationTime || !instance)
+            return;
+        AProjectile* p = (AProjectile*)(context->ebp);
+        if (!p)
+            return;
+        int targetAbscissa = p->CobTargetAbscissa(), col = targetAbscissa / 80;
+        instance->Add(
+            AGrid(p->CobTargetRow() + 1, int(targetAbscissa / 80.0f - 0.5) + 1), settings.PMarkerARGB, 
+            std::format("{:<4}  {:02}", Now.time + 1, targetAbscissa % 80 * 125 / 100), 
+            col < 10 ? std::format("{}.", col) : "X."
+        );
     }
 
 public:
-    ActivationMarker(int textDuration = 300)
-        : textDuration(textDuration) {}
+    void Draw() {
+        if (AGetMainObject() == nullptr)
+            return;
+
+        Prune(Now);
+        if (!settings.ActivationTime)
+            return;
+
+        for (const auto& info : infos) {
+            int x = MyColToX(info.grid.col);
+            int y = MyRowToY(info.grid.row, info.grid.col);
+            int offset = info.stackIndex % 4 * 15;
+            fightInfoPainter.Draw(ARect(x + 4, y + 9 + offset, 72, 14), info.argb);
+            fightInfoPainter.Draw(AText(info.mainText, x + 3, y + 5 + offset), 0xFFFFFFFF, 0x0);
+            fightInfoPainter.Draw(AText(info.colText, x + 44, y + 5 + offset), 0xFFFFFFFF, 0x0);
+        }
+    }
 
     void Start() {
-        ATickRunnerWithNoStart::_Start([this]() { CobProjectile(); }, ONLY_FIGHT);
+        instance = this;
         AInsertUniqueAsmCode(0x4666A0, AsmCallBack0x4666A0);
         AInsertUniqueAsmCode(0x4606F0, AsmCallBack0x4606F0);
+        AInsertUniqueAsmCode(0x46D85B, AsmCallBack0x46D85B);
     }
 };
 
@@ -3745,7 +3813,7 @@ void AScript() {
     GigaNumPainter.SetFontSize(17); // 红眼数样式
 
     tickFight.Start([=] { DanceCheat(); JackPause(); BalloonPause(); });
-    tickPainter.Start([=] { DrawInfo(); DrawIndex(); }, ATickRunner::PAINT);
+    tickPainter.Start([=] { DrawInfo(); DrawIndex(); ActivationMarker.Draw(); }, ATickRunner::PAINT);
     tickGlobal.Start([=] { WaveClockUpdate(); SmartRemove(); BalloonCaption(); }, ATickRunner::GLOBAL);
 
     ActivationMarker.Start();
