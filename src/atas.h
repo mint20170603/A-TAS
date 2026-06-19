@@ -2,154 +2,13 @@
 #ifndef __ATAS_H__
 #define __ATAS_H__
 
-#ifndef A_TAS_VERSION
-#define A_TAS_VERSION 202603120330
-#endif
-
 #include "AsmFunc.h"
 #include "Draw.h"
 #include "asm_insert_code/asm_insert_code.h"
 #include "dsl/shorthand.h"
 #include "game_controller.h"
 
-#include <array>
-#include <climits>
-#include <cmath>
-#include <deque>
-#include <format>
-#include <map>
-#include <string>
-#include <utility>
-#include <vector>
-
-namespace ATas {
-
-// Preset settings
-struct Settings {
-    long long Version = A_TAS_VERSION;
-
-    // General
-    char SpeedGears[256];
-    int WavelengthRecord = 3;
-    int SkipTickWave = 0;
-    int ReadOnly = -1;
-
-    // Replay
-    bool AutoRecordOnGameStart = true;
-    bool ShowMouse = true;
-    bool Interpolate = true;
-    bool ShowReplayInfo = true;
-    int recordTickInterval = 10;
-    int tickRewindCount = 1;
-    char savePath[256];
-
-    // Special
-    bool EnterHousePause = true;
-
-    // Display
-    bool ShowMe = true;
-    bool PlantOffset = true;
-    bool ProduceCD = true;
-    bool CobCD = true;
-    bool CobGloomHP = true;
-    bool LilyPotHP = true;
-    bool PumpkinHP = true;
-    bool NutSpikeHP = true;
-    bool OtherPlantHP = true;
-    bool Crater = true;
-    bool Icetrail = true;
-    bool HPStyle = false;
-    bool GigaStat = true;
-    bool GigaHP = true;
-    bool GigaCount = true;
-    bool GargHP = true;
-    bool ZomboniCount = true;
-    bool FootballHP = true;
-    bool FootballCount = true;
-    bool JackCountdown = true;
-    bool JackExplosionRange = true;
-    bool TotalHP = true;
-    bool ShowSpeed = true;
-    bool CobColPreview = true;
-    bool ActivationTime = true;
-    int MarkerDuration = 300;
-    bool VBEStat = true;
-
-    // Display Color
-    uint32_t ProduceCDARGB = 0xFFFFFF00;
-    uint32_t CobCDARGB = 0xFFFFFF00;
-    uint32_t CobGloomHPARGB = 0xFF4CAF50;
-    uint32_t LilyPotHPARGB = 0xFF4CAF50;
-    uint32_t PumpkinHPARGB = 0xFFFFA500;
-    uint32_t NutSpikeHPARGB = 0xFF4CAF50;
-    uint32_t OtherPlantHPARGB = 0xFF4CAF50;
-    uint32_t CraterARGB = 0xFF965821;
-    uint32_t IcetrailARGB = 0xFF16F2EB;
-    uint32_t GigaStatARGB1 = 0xFFFF0000;
-    uint32_t GigaStatARGB2 = 0xFF9868BC;
-    uint32_t GigaHPARGB = 0xFFFF0000;
-    uint32_t GigaCountARGB = 0xFFFF0000;
-    uint32_t GargHPARGB = 0xFF9868BC;
-    uint32_t ZomboniCountARGB = 0xFF0040FF;
-    uint32_t FootballHPARGB = 0xFF6D706C;
-    uint32_t FootballCountARGB = 0xFF6D706C;
-    uint32_t JackCountdownARGB = 0xFFFF69B4;
-    uint32_t JackExplosionRangeARGB = 0x9AFF0000;
-    uint32_t TotalHPARGB1 = 0xFF9868BC;
-    uint32_t TotalHPARGB2 = 0xFF6D706C;
-    uint32_t ShowSpeedARGB1 = 0xFFFF0000;
-    uint32_t ShowSpeedARGB2 = 0xFF00FF00;
-    uint32_t VBEStatARGB = 0xFFFFFFFF;
-
-    uint32_t PMarkerARGB = 0xFFFFA000;
-    uint32_t IMarkerARGB = 0xFF00A0FF;
-    uint32_t NMarkerARGB = 0xFF353535;
-    uint32_t AMarkerARGB = 0xFFC00000;
-    uint32_t JMarkerARGB = 0xFFFF0040;
-    uint32_t WMarkerARGB = 0xFFA0B060;
-    uint32_t MMarkerARGB = 0xFFDAC060;
-
-    // Spawn
-    bool Types[26] = {};
-    bool ZombieList = false;
-    bool AverageRowSpawn = false;
-    bool RandomType = false;
-
-    // Other
-    bool Row6Plant = false;
-    bool Row6Spawn = false;
-    bool SmallPool = false;
-    bool NormalPool = false;
-    bool Row34PoolSpawn = false;
-    bool SnorkelDolphinSpawn = false;
-
-    bool AllowPoolAmbush = false;
-    bool BanPoolAmbush = false;
-    bool AllowSkyAmbush = false;
-    bool BanSkyAmbush = false;
-
-    bool AllowZomboni = false;
-    bool BanZomboni = false;
-    bool AllowSnorkel = false;
-    bool BanSnorkel = false;
-    bool AllowDolphin = false;
-    bool BanDolphin = false;
-    bool AllowDancing = false;
-    bool BanDancing = false;
-    bool AllowDigger = false;
-    bool BanDigger = false;
-
-    bool AllowBobsled = false;
-
-    bool AllowPeashooterZombie = false;
-    bool AllowWallnutZombie = false;
-    bool AllowJalapenoZombie = false;
-    bool AllowGatlingPeaZombie = false;
-    bool AllowSquashZombie = false;
-    bool AllowTallnutZombie = false;
-
-};
-
+// 最左冰道
 inline int LeftmostIceTrail(int Row) {
     int LeftCol = 10;
     for (int Col = 9; Col > 0; --Col) {
@@ -163,19 +22,41 @@ inline int LeftmostIceTrail(int Row) {
 inline int IceTrailCoverCD(int Row) { return AMRef<int>(0x6A9EC0, 0x768, 0x620 + Row * 4); }
 
 // 正弦/碧水原教旨智能铲除
+inline std::vector<std::vector<std::array<APlant*, 5>>> PlantMap(6, std::vector<std::array<APlant*, 5>>(9, {nullptr, nullptr, nullptr, nullptr, nullptr}));
+inline auto& Grid(int Row, int Col) { return PlantMap[Row - 1][Col - 1]; }
 
-class SmartRemoveController {
-public:
-    bool enabled = false;
-    std::vector<std::vector<std::array<APlant*, 5>>> plantMap = std::vector<std::vector<std::array<APlant*, 5>>>(6, std::vector<std::array<APlant*, 5>>(9, {nullptr, nullptr, nullptr, nullptr, nullptr}));
+// 遍历一次全场植物，得到一份按格子存储的PlantMap
+// 0-容器 1-南瓜 2-咖啡 3-常规 4-飞行窝瓜
+inline void UpdatePlantMap() {
+    for (auto& Row : PlantMap)
+        for (auto& Grid : Row)
+            Grid.fill(nullptr);
+    for (auto& Plant : aAlivePlantFilter) {
+        switch (Plant.Type()) {
+        case ALILY_PAD:
+        case AFLOWER_POT:
+            PlantMap[Plant.Row()][Plant.Col()][0] = &Plant;
+            break;
+        case APUMPKIN:
+            PlantMap[Plant.Row()][Plant.Col()][1] = &Plant;
+            break;
+        case ACOFFEE_BEAN:
+            PlantMap[Plant.Row()][Plant.Col()][2] = &Plant;
+            break;
+        case ASQUASH:
+            if (ARangeIn(Plant.State(), {5, 6})) // 5-上升 6-下落
+                PlantMap[Plant.Row()][Plant.Col()][4] = &Plant;
+            else
+                PlantMap[Plant.Row()][Plant.Col()][3] = &Plant;
+            break;
+        default:
+            PlantMap[Plant.Row()][Plant.Col()][3] = &Plant;
+            break;
+        }
+    }
+}
 
-    std::array<APlant*, 5>& Grid(int Row, int Col) { return plantMap[Row - 1][Col - 1]; }
-    void UpdatePlantMap();
-    void Tick();
-    void Toggle() { enabled = !enabled; CreateCaption(enabled ? "SmartRemove: On" : "SmartRemove: Off"); }
-    void Reset() { enabled = false; }
-};
-
+// 得到植物防御域
 inline std::pair<int, int> GetDefenseRange(APlantType type) {
     switch (type) {
     case ATALL_NUT:
@@ -296,39 +177,9 @@ inline bool isPlantDisappearedImmediately(APlant* Plant) {
 // 3. 修复了复合铲除的栈位垫
 // 4. 修复了多种僵尸铲套时植物指针不存在的崩溃，加入continue防崩溃同时优化代码
 // 5. 修复了冰车篮球判定存在1cs误差的问题
-
-inline void SmartRemoveController::UpdatePlantMap() {
-    for (auto& Row : plantMap)
-        for (auto& Grid : Row)
-            Grid.fill(nullptr);
-    for (auto& Plant : aAlivePlantFilter) {
-        switch (Plant.Type()) {
-        case ALILY_PAD:
-        case AFLOWER_POT:
-            plantMap[Plant.Row()][Plant.Col()][0] = &Plant;
-            break;
-        case APUMPKIN:
-            plantMap[Plant.Row()][Plant.Col()][1] = &Plant;
-            break;
-        case ACOFFEE_BEAN:
-            plantMap[Plant.Row()][Plant.Col()][2] = &Plant;
-            break;
-        case ASQUASH:
-            if (ARangeIn(Plant.State(), {5, 6})) // 5-上升 6-下落
-                plantMap[Plant.Row()][Plant.Col()][4] = &Plant;
-            else
-                plantMap[Plant.Row()][Plant.Col()][3] = &Plant;
-            break;
-        default:
-            plantMap[Plant.Row()][Plant.Col()][3] = &Plant;
-            break;
-        }
-    }
-}
-
-// 5. 修复了冰车篮球判定存在1cs误差的问题
-inline void SmartRemoveController::Tick() {
-    if (!enabled)
+inline bool SmartRemoveSwitch = false;
+inline void SmartRemove() {
+    if (!SmartRemoveSwitch)
         return;
     UpdatePlantMap(); // 遍历一次全场植物，得到一份按格子存储的植物map
     auto Gargantuar = GetHammeringGargInfo(true);
@@ -614,6 +465,7 @@ inline void SmartRemoveController::Tick() {
     }
 }
 
+// 检查卡片是否能用或是被拿着
 inline bool isSeedUsableOrHolding(APlantType Type) {
     if (Type >= 49) {
         return AIsSeedUsable(Type) || AGetMainObject()->MouseAttribution()->MRef<int>(0x2C) == Type - 49;
@@ -767,40 +619,8 @@ inline void SmartAsh() {
 }
 
 // 小丑暂停
-
-
-class WarningController {
-public:
-    int JackWarning = -1;
-    bool BalloonWarning = false;
-    int BalloonPauseCd = 200;
-
-    void ToggleJack() {
-        JackWarning = JackWarning == 1 ? -1 : ++JackWarning;
-        CreateCaption(!JackWarning ? "JackWarning: OnlyWhenHit"
-                : JackWarning == 1 ? "JackWarning: All"
-                                   : "JackWarning: Off");
-    }
-    void ToggleBalloon() {
-        BalloonWarning = !BalloonWarning;
-        CreateCaption(BalloonWarning ? "BalloonWarning: On" : "BalloonWarning: Off");
-    }
-    void JackPause();
-    void BalloonCaption();
-    void BalloonPause();
-    void Reset() { JackWarning = -1; BalloonWarning = false; BalloonPauseCd = 200; }
-};
-
-inline float BalloonΔX(int Time, float Speed, int SlowCountdown = 0) {
-    if (!SlowCountdown)
-        return Speed * Time; // 原速 × 总时间
-    if (SlowCountdown > Time)
-        return 0.4 * Speed * Time; // 减速 × 总时间
-    return 0.4 * Speed * (SlowCountdown - 1) + Speed * (Time - (SlowCountdown - 1));
-    // 减速 × (减速倒计时 - 1) + 原速 × (总时间 - (减速倒计时 - 1))
-}
-
-inline void WarningController::JackPause() {
+inline int JackWarning = -1;
+inline void JackPause() {
     if (JackWarning == -1)
         return;
     for (auto& Zombie : aAliveZombieFilter) {
@@ -825,7 +645,19 @@ inline void WarningController::JackPause() {
     }
 }
 
-inline void WarningController::BalloonCaption() {
+// 气球位移
+inline float BalloonΔX(int Time, float Speed, int SlowCountdown = 0) {
+    if (!SlowCountdown)
+        return Speed * Time; // 原速 × 总时间
+    if (SlowCountdown > Time)
+        return 0.4 * Speed * Time; // 减速 × 总时间
+    return 0.4 * Speed * (SlowCountdown - 1) + Speed * (Time - (SlowCountdown - 1));
+    // 减速 × (减速倒计时 - 1) + 原速 × (总时间 - (减速倒计时 - 1))
+}
+
+// 气球字幕、暂停防呆计算
+inline bool BalloonWarning = false;
+inline void BalloonCaption() {
     if (PausedCd < 480)
         PausedCd += AGetPvzBase()->TickMs();
     if (!BalloonWarning)
@@ -845,7 +677,9 @@ inline void WarningController::BalloonCaption() {
     }
 }
 
-inline void WarningController::BalloonPause() {
+// 气球暂停
+inline int BalloonPauseCd = 200;
+inline void BalloonPause() {
     if (!BalloonWarning)
         return;
     if (BalloonPauseCd < 200) // 两次气球警告至少间隔200cs
@@ -863,6 +697,7 @@ inline void WarningController::BalloonPause() {
     }
 }
 
+// 真实倒计时
 inline int RealCountdown() {
     if (AGetMainObject()->Wave() == AGetMainObject()->TotalWave())
         return AGetMainObject()->LevelEndCountdown();
@@ -876,555 +711,186 @@ inline int RealCountdown() {
     return AGetMainObject()->RefreshCountdown();
 }
 
-struct ClockState {
-    std::vector<int> waveClock = std::vector<int>(40, 0);
-    ATime now;
-
-    void Update();
-    void Reset() { waveClock.assign(40, 0); now = ATime(); }
-    int Clock(const ATime& time) const {
-        if (time.wave <= 1)
-            return time.time;
-        int idx = time.wave - 1;
-        return 0 <= idx && idx < int(waveClock.size()) && waveClock[idx] ? waveClock[idx] + time.time : INT_MIN;
-    }
-};
-
-inline void ClockState::Update() {
+// 自制时钟
+inline std::vector<int> WaveClock(40, 0);
+inline ATime Now;
+inline void WaveClockUpdate() {
     if (AGetMainObject() == nullptr)
         return;
     if (RealCountdown())
-        waveClock[AGetMainObject()->Wave()] = AGetMainObject()->GameClock() + RealCountdown();
+        WaveClock[AGetMainObject()->Wave()] = AGetMainObject()->GameClock() + RealCountdown();
 
-    now.wave = AGetMainObject()->Wave() ?: 1;
+    Now.wave = AGetMainObject()->Wave() ?: 1;
     if (AGetMainObject()->Wave() == 0)
-        now.time = -AGetMainObject()->RefreshCountdown();
-    else if (waveClock[AGetMainObject()->Wave() - 1] == 0)
-        now.time = ANowTime(ANowWave());
+        Now.time = -AGetMainObject()->RefreshCountdown();
+    else if (WaveClock[AGetMainObject()->Wave() - 1] == 0)
+        Now.time = ANowTime(ANowWave());
     else
-        now.time = AGetMainObject()->GameClock() - waveClock[AGetMainObject()->Wave() - 1];
+        Now.time = AGetMainObject()->GameClock() - WaveClock[AGetMainObject()->Wave() - 1];
 }
-
-class FightInfoDrawer {
-public:
-    MyPainter barPainter;
-    MyPainter fightInfoPainter;
-    MyPainter SegPainter;
-    MyPainter backgroundPainter;
-    MyPainter lowIndexPainter;
-    MyPainter nextIndexPainter;
-    MyPainter GigaNumPainter;
-    int ShowInfoState = -1;
-    int ShowIndexState = -1;
-    std::vector<int> LeftmostVisibleArea = std::vector<int>(6, 10);
-
-    void InitPainterStyle() {
-        fightInfoPainter.SetFontSize(17);
-        lowIndexPainter.SetFont("Arial");
-        lowIndexPainter.SetFontSize(12);
-        nextIndexPainter.SetFont("Arial");
-        nextIndexPainter.SetFontSize(30);
-        GigaNumPainter.SetFont("");
-        GigaNumPainter.SetFontSize(17);
-    }
-    void ToggleInfo() {
-        ShowInfoState = ShowInfoState == 1 ? -1 : ++ShowInfoState;
-        CreateCaption(!ShowInfoState ? "ShowInfo: Basic"
-                : ShowInfoState == 1 ? "ShowInfo: Advanced"
-                                     : "ShowInfo: Off");
-    }
-    void ToggleIndex() {
-        ShowIndexState = ShowIndexState == 1 ? -1 : ++ShowIndexState;
-        ResetIndexArea();
-    }
-    void SetInfoState(int state) { ShowInfoState = state; }
-    void SetIndexState(int state) { ShowIndexState = state; ResetIndexArea(); }
-    void ResetIndexArea() { LeftmostVisibleArea.assign(6, 10); }
-    void Reset() { ShowInfoState = -1; ShowIndexState = -1; ResetIndexArea(); ProduceCDMax.clear(); }
-    void DrawInfo(const Settings& settings, const ClockState& clock);
-    void DrawIndex(const Settings& settings);
-
-private:
-    struct TimerData { int max = 2500, last = INT_MAX; };
-    std::map<uint32_t, TimerData> ProduceCDMax;
-};
-
-inline void FightInfoDrawer::DrawInfo(const Settings& settings, const ClockState& clock) {
-    if (AGetMainObject() == nullptr)
-        return; // 防崩溃代码
-    if (settings.ShowReplayInfo && aReplay.GetState() == AReplay::RECORDING) {
-        barPainter.Draw(ABar(685, 3, 1, 0, {}, 1, ABar::RIGHT, 106, 24, 0xFFFFC000, 0xC0FFFFFF));
-        fightInfoPainter.Draw(AText("Rec.", 689, 4), 0xFFFF0000);
-        fightInfoPainter.Draw(AText(std::format("{}", aReplay.GetRecordIdx()), 733, 4), 0xFFFF0000);
-    }
-    if (settings.ShowReplayInfo && aReplay.GetState() == AReplay::PLAYING) {
-        barPainter.Draw(ABar(685, 3, 1, 0, {}, 1, ABar::RIGHT, 106, 24, 0xFFFFC000, 0xC0FFFFFF));
-        fightInfoPainter.Draw(AText("Play", 689, 4), 0xFF0000FF);
-        fightInfoPainter.Draw(AText(std::format("{}", aReplay.GetPlayIdx()), 733, 4), 0xFF0000FF);
-    }
-    if (ShowInfoState == -1)
-        return;
-    for (auto& Plant : aAlivePlantFilter) { // 显血
-        if (ARangeIn(Plant.Type(), {ASUNFLOWER, ASUN_SHROOM, AMARIGOLD, ATWIN_SUNFLOWER}) && !Plant.IsSleeping() && settings.ProduceCD) {
-            auto& data = ProduceCDMax[Plant.Id()];
-            int cur = Plant.MRef<int>(0x58);
-            if (cur > data.last)
-                data.max = cur;
-            data.last = cur;
-            barPainter.Draw(ABar(Plant.Xi() + 4, MyRowToY(Plant.Row() + 1, Plant.Col() + 1) + 17, 2500, data.max - cur, {2350}, 1, ABar::RIGHT, 72, 7, settings.ProduceCDARGB, 0xA0FFFFFF));
-        }
-        if (Plant.Type() == ACOB_CANNON && AGetCobRecoverTime(Plant.Index()) && settings.CobCD)
-            barPainter.Draw(ABar(Plant.Xi() + 4, Plant.Yi() + 17, 3475, 3475 - AGetCobRecoverTime(Plant.Index()), {350, 3350}, 1, ABar::RIGHT, 152, 7, settings.CobCDARGB, 0xA0FFFFFF));
-        if (Plant.Hp() != Plant.HpMax()) {
-            if (Plant.Type() == ACOB_CANNON) {
-                if (settings.CobGloomHP)
-                    barPainter.Draw(ABar(Plant.Xi() + 4, Plant.Yi() + 25, Plant.HpMax(), Plant.Hp(), {}, 1, ABar::RIGHT, 152, 11, settings.CobGloomHPARGB, 0xA0FFFFFF));
-            } else if (Plant.Type() == AGLOOM_SHROOM) {
-                if (settings.CobGloomHP)
-                    barPainter.Draw(ABar(Plant.Xi() + 4, Plant.Yi() + 25, Plant.HpMax(), Plant.Hp(), {}, 1, ABar::RIGHT, 72, 11, settings.CobGloomHPARGB, 0xA0FFFFFF));
-            } else if (Plant.Type() == ACOFFEE_BEAN) {
-                if (settings.OtherPlantHP)
-                    barPainter.Draw(ABar(Plant.Xi() + 4, Plant.Yi() + 13, Plant.HpMax(), Plant.Hp(), {}, 1, ABar::RIGHT, 72, 11, settings.OtherPlantHPARGB, 0xA0FFFFFF));
-            } else if (ARangeIn(Plant.Type(), {AWALL_NUT, ATALL_NUT, ASPIKEROCK})) {
-                if (settings.NutSpikeHP)
-                    barPainter.Draw(ABar(Plant.Xi() + 4, Plant.Yi() + 25, Plant.HpMax(), Plant.Hp(), {Plant.HpMax() / 3, Plant.HpMax() * 2 / 3}, 1, ABar::RIGHT, 72, 11, settings.NutSpikeHPARGB, 0xA0FFFFFF));
-            } else if (Plant.Type() == APUMPKIN) {
-                if (settings.PumpkinHP)
-                    barPainter.Draw(ABar(Plant.Xi() + 4, Plant.Yi() + 45, Plant.HpMax(), Plant.Hp(), {Plant.HpMax() / 3, Plant.HpMax() * 2 / 3}, 1, ABar::RIGHT, 72, 11, settings.PumpkinHPARGB, 0xA0FFFFFF));
-            } else if (ARangeIn(Plant.Type(), {ALILY_PAD, AFLOWER_POT})) {
-                if (settings.LilyPotHP)
-                    barPainter.Draw(ABar(Plant.Xi() + 4, Plant.Yi() + 57, Plant.HpMax(), Plant.Hp(), {}, 1, ABar::RIGHT, 72, 11, settings.LilyPotHPARGB, 0xA0FFFFFF));
-            } else if (Plant.Type() == ASQUASH) {
-                if (settings.OtherPlantHP)
-                    barPainter.Draw(ABar(Plant.Xi() + 4, Plant.Yi() + 25, Plant.HpMax(), Plant.Hp(), {}, 1, ABar::RIGHT, 72, 11, settings.OtherPlantHPARGB, 0xA0FFFFFF));
-            } else {
-                if (settings.OtherPlantHP)
-                    barPainter.Draw(ABar(MyColToX(Plant.Col() + 1) + 4, MyRowToY(Plant.Row() + 1, Plant.Col() + 1) + 25, Plant.HpMax(), Plant.Hp(), {}, 1, ABar::RIGHT, 72, 11, settings.OtherPlantHPARGB, 0xA0FFFFFF));
-            }
-        }
-    }
-    for (auto& Place : aAlivePlaceItemFilter) { // 核坑
-        if (Place.Type() != 2 || !settings.Crater)
-            continue;
-        auto Coordinate = MyGridToCoordinate(Place.Row() + 1, Place.Col() + 1);
-        int Abscissa = Coordinate.first, Ordinate = Coordinate.second;
-        barPainter.Draw(ABar(Abscissa + 4, Ordinate + 62, 18000, Place.Value(), {}, 1, ABar::RIGHT, 72, 6, settings.CraterARGB, 0xA0FFFFFF, 0xFF000000, 0));
-    }
-    for (int Row = 1; Row <= 6; ++Row) { // 冰道
-        if (LeftmostIceTrail(Row) > 9 || !settings.Icetrail)
-            continue;
-        auto Coordinate = MyGridToCoordinate(Row, LeftmostIceTrail(Row));
-        int Abscissa = Coordinate.first, Ordinate = Coordinate.second;
-        barPainter.Draw(ABar(Abscissa + 4, Ordinate + 50, 3000, IceTrailCoverCD(Row), {}, 1, ABar::RIGHT, 72, 6, settings.IcetrailARGB, 0xA0FFFFFF, 0xFF000000, 0));
-    }
-    std::vector<int> FootballThisWave(6, 0);
-    std::vector<int> ZomboniThisWave(6, 0);
-    std::vector<int> FootballCount(6, 0);
-    std::vector<int> ZomboniCount(6, 0);
-    // 确保血条覆盖顺序，故多次遍历
-    for (auto& Zombie : aAliveZombieFilter) {
-        if (Zombie.Type() == AFOOTBALL_ZOMBIE && Zombie.Hp() >= 90) { // 橄榄血条
-            if (settings.FootballHP)
-                barPainter.Draw(ABar(Zombie.Abscissa() + 81, Zombie.Ordinate() + 69, 1580, Zombie.OneHp() + Zombie.Hp() - 90, {180}, 1, ABar::UP, 36, 6, settings.FootballHPARGB, 0xA0FFFFFF));
-            ++FootballCount[Zombie.Row()]; // 橄榄实时统计
-            if (Zombie.AtWave() == AGetMainObject()->Wave() - 1)
-                ++FootballThisWave[Zombie.Row()];
-        }
-        if (Zombie.Type() == AZOMBONI) {
-            ++ZomboniCount[Zombie.Row()]; // 冰车实时统计
-            if (Zombie.AtWave() == AGetMainObject()->Wave() - 1)
-                ++ZomboniThisWave[Zombie.Row()];
-        }
-    }
-    for (auto& Zombie : aAliveZombieFilter) {
-        if (Zombie.Type() == AGARGANTUAR) // 白眼血条
-            if (settings.GargHP)
-                barPainter.Draw(ABar(Zombie.Abscissa() + 49, Zombie.Ordinate() + 59, 3000, Zombie.Hp(), settings.HPStyle ? std::initializer_list<int> {1200} : std::initializer_list<int> {1500, 1800}, 1, ABar::UP, 40, 8, settings.GargHPARGB, 0xA0FFFFFF));
-    }
-    std::vector<int> GigaThisWave(6, 0);
-    std::vector<int> GigaCount(6, 0);
-    for (auto& Zombie : aAliveZombieFilter) {
-        if (Zombie.Type() == AGIGA_GARGANTUAR) { // 红眼血条
-            if (settings.GigaHP)
-                barPainter.Draw(ABar(Zombie.Abscissa() + 49, Zombie.Ordinate() + 79, 6000, Zombie.Hp(), settings.HPStyle ? std::initializer_list<int> {600, 2400, 4200} : std::initializer_list<int> {1800, 3000, 4800}, 1, ABar::UP, 80, 8, settings.GigaHPARGB, 0xA0FFFFFF));
-            ++GigaCount[Zombie.Row()]; // 红眼实时统计
-            if (Zombie.AtWave() == AGetMainObject()->Wave() - 1)
-                ++GigaThisWave[Zombie.Row()];
-        }
-    }
-    for (auto& Plant : aAlivePlantFilter) {
-        // 受炸提示，打印一个与植物血条重合的半透明红色矩形，包括飞行窝瓜和咖啡豆
-        for (auto& Zombie : aAliveZombieFilter) {
-            if (Zombie.Type() == AJACK_IN_THE_BOX_ZOMBIE && Zombie.State() == 16 && JudgeExplode(&Plant, &Zombie) && settings.JackExplosionRange) {
-                if (Plant.Type() == ACOB_CANNON)
-                    backgroundPainter.Draw(ARect(Plant.Xi() + 4, Plant.Yi() + 25, 152, 11), settings.JackExplosionRangeARGB);
-                else if (Plant.Type() == ACOFFEE_BEAN)
-                    backgroundPainter.Draw(ARect(Plant.Xi() + 4, Plant.Yi() + 13, 72, 11), settings.JackExplosionRangeARGB);
-                else if (Plant.Type() == APUMPKIN)
-                    backgroundPainter.Draw(ARect(Plant.Xi() + 4, Plant.Yi() + 45, 72, 11), settings.JackExplosionRangeARGB);
-                else if (ARangeIn(Plant.Type(), {ALILY_PAD, AFLOWER_POT}))
-                    backgroundPainter.Draw(ARect(Plant.Xi() + 4, Plant.Yi() + 57, 72, 11), settings.JackExplosionRangeARGB);
-                else if (Plant.Type() == ASQUASH)
-                    backgroundPainter.Draw(ARect(Plant.Xi() + 4, Plant.Yi() + 25, 72, 11), settings.JackExplosionRangeARGB);
-                else
-                    backgroundPainter.Draw(ARect(MyColToX(Plant.Col() + 1) + 4, MyRowToY(Plant.Row() + 1, Plant.Col() + 1) + 25, 72, 11), settings.JackExplosionRangeARGB);
-                break;
-            }
-        }
-        // 小喷菇阳光菇海蘑菇偏移
-        if (!settings.PlantOffset)
-            continue;
-        int RectHeight = 11;
-        if (Plant.Hp() < Plant.HpMax() || !settings.OtherPlantHP)
-            RectHeight = 0;
-        int Plantoffset = Plant.Xi() - MyColToX(Plant.Col() + 1);
-        if (Plantoffset > 0) {
-            backgroundPainter.Draw(ARect(MyColToX(Plant.Col() + 1) + 53 + 4, MyRowToY(Plant.Row() + 1, Plant.Col() + 1) + 25, 14, RectHeight), settings.OtherPlantHPARGB);
-            lowIndexPainter.Draw(AText(std::format("R{}", Plantoffset), MyColToX(Plant.Col() + 1) + 52 + 4, MyRowToY(Plant.Row() + 1, Plant.Col() + 1) + 21), 0xFF000000);
-        }
-        if (Plantoffset < 0) {
-            backgroundPainter.Draw(ARect(MyColToX(Plant.Col() + 1) + 5 + 4, MyRowToY(Plant.Row() + 1, Plant.Col() + 1) + 25, 14, RectHeight), settings.OtherPlantHPARGB);
-            lowIndexPainter.Draw(AText(std::format("L{}", -Plantoffset), MyColToX(Plant.Col() + 1) + 4 + 4, MyRowToY(Plant.Row() + 1, Plant.Col() + 1) + 21), 0xFF000000);
-        }
-    }
-    // 有小丑开盒，绘制爆炸倒计时
-    for (auto& Zombie : aAliveZombieFilter) {
-        if (Zombie.Type() == AJACK_IN_THE_BOX_ZOMBIE && Zombie.State() == 16 && settings.JackCountdown)
-            barPainter.Draw(ABar(Zombie.Abscissa() + 65, Zombie.Ordinate() + 87, 110, Zombie.StateCountdown(), {100}, 1, ABar::UP, 55, 10, settings.JackCountdownARGB, 0xA0FFFFFF));
-    }
-    for (int Row : {0, 1, 2, 3, 4, 5}) {
-        if (AMRef<int>(0x6A9EC0, 0x768, 0x5D8 + Row * 0x4) != 1)
-            continue;
-        int Height = 16;
-        auto Coordinate = MyGridToCoordinate(Row + 1, 0.5);
-        int Ordinate = Coordinate.second;
-        if (GigaCount[Row] && settings.GigaCount) { // 红眼实时统计绘制
-            std::string Giga = std::format("{}/{}", GigaThisWave[Row], GigaCount[Row]);
-            backgroundPainter.Draw(ARect(0, Ordinate + aFieldInfo.rowHeight / 2 + 3 - Height, Giga.size() * 9 + 2, 16), settings.GigaCountARGB);
-            fightInfoPainter.Draw(AText(Giga, 0, Ordinate + aFieldInfo.rowHeight / 2 - Height), 0xFFFFFFFF);
-        }
-        if (ZomboniCount[Row] && settings.ZomboniCount) { // 冰车实时统计绘制
-            std::string Zomboni = std::format("{}/{}", ZomboniThisWave[Row], ZomboniCount[Row]);
-            backgroundPainter.Draw(ARect(0, Ordinate + aFieldInfo.rowHeight / 2 + 3, Zomboni.size() * 9 + 2, 16), settings.ZomboniCountARGB);
-            fightInfoPainter.Draw(AText(Zomboni, 0, Ordinate + aFieldInfo.rowHeight / 2), 0xFFFFFFFF);
-        }
-        if (FootballCount[Row] && settings.FootballCount) { // 橄榄实时统计绘制
-            std::string Football = std::format("{}/{}", FootballThisWave[Row], FootballCount[Row]);
-            backgroundPainter.Draw(ARect(0, Ordinate + aFieldInfo.rowHeight / 2 + 3 + Height, Football.size() * 9 + 2, 16), settings.FootballCountARGB);
-            fightInfoPainter.Draw(AText(Football, 0, Ordinate + aFieldInfo.rowHeight / 2 + Height), 0xFFFFFFFF);
-        }
-    }
-    std::vector<int> GigaDistribution(20, 0);
-    std::vector<int> GigaCumulativeDistribution(20, 0);
-    for (int Wave = 0; Wave < 20; ++Wave) { // 红眼出怪表统计
-        for (int i = 0; i < 50; ++i)
-            if (*(AGetMainObject()->ZombieList() + 50 * Wave + i) == AGIGA_GARGANTUAR)
-                ++GigaDistribution[Wave];
-        GigaCumulativeDistribution[Wave] = Wave ? GigaCumulativeDistribution[Wave - 1] + GigaDistribution[Wave] : GigaDistribution[Wave];
-    }
-    if (GigaCumulativeDistribution[20 - 1] && settings.GigaStat) { // 红眼出怪表统计绘制
-        backgroundPainter.Draw(ARect(19, 7, 61, 53), GigaCumulativeDistribution[AGetMainObject()->Wave() - 1] < 50 ? settings.GigaStatARGB1 : settings.GigaStatARGB2);
-        if (AGetMainObject()->Wave()) {
-            GigaNumPainter.Draw(AText(std::format("Wave{:2}", GigaDistribution[ANowWave(false) - 1]), 22, ShowInfoState ? 6 : 11), 0xFFFFFFFF);
-            GigaNumPainter.Draw(AText(std::format("Sum{:3}", GigaCumulativeDistribution[ANowWave(false) - 1]), 22, ShowInfoState ? 22 : 33), 0xFFFFFFFF);
-        } else {
-            GigaNumPainter.Draw(AText("Wave 0", 22, ShowInfoState ? 6 : 11), 0xFFFFFFFF);
-            GigaNumPainter.Draw(AText("Sum  0", 22, ShowInfoState ? 22 : 33), 0xFFFFFFFF);
-        }
-        if (ShowInfoState)
-            GigaNumPainter.Draw(AText(std::format("All{:3}", GigaCumulativeDistribution[20 - 1]), 22, 38), 0xFFFFFFFF);
-    }
-
-    // 本波总血条
-    if (settings.TotalHP) {
-        if (AGetMainObject()->Wave() == 0)
-            barPainter.Draw(ABar(58, 574, 1, 0, {}, 1, ABar::RIGHT, 127, 24, settings.TotalHPARGB1, 0xC0FFFFFF));
-        else if (ARangeIn(AGetMainObject()->Wave(), {9, 19, 29, 39, AGetMainObject()->TotalWave()}) || ShowInfoState)
-            barPainter.Draw(ABar(58, 574, AGetMainObject()->MRef<int>(0x5598), AAsm::ZombieTotalHp(ANowWave() - 1), {AGetMainObject()->ZombieRefreshHp()}, 1, ABar::RIGHT, 127, 24, RealCountdown() ? settings.TotalHPARGB2 : settings.TotalHPARGB1, 0xC0FFFFFF));
-        else
-            barPainter.Draw(ABar(58, 574, AGetMainObject()->MRef<int>(0x5598), AAsm::ZombieTotalHp(ANowWave() - 1), {AGetMainObject()->MRef<int>(0x5598) * 13 / 20, AGetMainObject()->MRef<int>(0x5598) / 2}, 1, ABar::RIGHT, 127, 24, settings.TotalHPARGB1, 0xC0FFFFFF));
-        // 波数时间
-        fightInfoPainter.Draw(AText(std::format("{:02},", AGetMainObject()->Wave() ?: 1), 59, 575), 0xFF0000FF);
-        if (AGetMainObject()->Wave() == 0)
-            fightInfoPainter.Draw(AText(std::format("{}", -AGetMainObject()->RefreshCountdown()), 82, 575), 0xFF0000FF);
-        else if (clock.waveClock[AGetMainObject()->Wave() - 1] == 0)
-            fightInfoPainter.Draw(AText(std::format("{}", ANowTime(ANowWave())), 82, 575), 0xFF0000FF);
-        else
-            fightInfoPainter.Draw(AText(std::format("{}", AGetMainObject()->GameClock() - clock.waveClock[AGetMainObject()->Wave() - 1]), 82, 575), 0xFF0000FF);
-        fightInfoPainter.Draw(AText(RealCountdown() && (ARangeIn(AGetMainObject()->Wave(), {9, 19, 20}) || ShowInfoState) ? std::format("{}", -RealCountdown()) : "", 145, 575), 0xFFFF0000);
-    }
-
-    // 波长记录
-    for (int i = 0; i < settings.WavelengthRecord; ++i) {
-        if (AGetMainObject()->Wave() - i > 0 && clock.waveClock[AGetMainObject()->Wave() - i] > 0 && RealCountdown() && (ARangeIn(AGetMainObject()->Wave(), {9, 19, 29, 39, AGetMainObject()->TotalWave()}) || ShowInfoState)) {
-            barPainter.Draw(ABar(191 + 71 * i, 574, 1, 0, {}, 1, ABar::RIGHT, 65, 24, 0xFFFFC000, 0xC0FFFFFF));
-            fightInfoPainter.Draw(AText(std::format("{:02},", AGetMainObject()->Wave() - i ?: 1), 193 + 71 * i, 575), 0xFF0000FF);
-            fightInfoPainter.Draw(AText(std::format("{}", clock.waveClock[AGetMainObject()->Wave() - i] - clock.waveClock[AGetMainObject()->Wave() - 1 - i]), 216 + 71 * i, 575), 0xFF0000FF);
-        } else if (AGetMainObject()->Wave() - 1 - i > 0 && clock.waveClock[AGetMainObject()->Wave() - 1 - i] > 0) {
-            barPainter.Draw(ABar(191 + 71 * i, 574, 1, 0, {}, 1, ABar::RIGHT, 65, 24, 0xFFFFC000, 0xC0FFFFFF));
-            fightInfoPainter.Draw(AText(std::format("{:02},", AGetMainObject()->Wave() - i - 1 ?: 1), 193 + 71 * i, 575), 0xFF0000FF);
-            if (clock.waveClock[AGetMainObject()->Wave() - 2 - i] > 0)
-                fightInfoPainter.Draw(AText(std::format("{}", clock.waveClock[AGetMainObject()->Wave() - 1 - i] - clock.waveClock[AGetMainObject()->Wave() - 2 - i]), 216 + 71 * i, 575), 0xFF0000FF);
-            else
-                fightInfoPainter.Draw(AText(std::format("{}", ANowTime(ANowWave() - 1 - i) - ANowTime(ANowWave() - i)), 216 + 71 * i, 575), 0xFF0000FF);
-        }
-    }
-
-    // 显示倍速
-    if (AGetPvzBase()->TickMs() != 10 && settings.ShowSpeed) {
-        barPainter.Draw(ABar(6, 574, 1, 1, {}, 1, ABar::RIGHT, 46, 24, AGetPvzBase()->TickMs() > 10 ? settings.ShowSpeedARGB1 : settings.ShowSpeedARGB2));
-        fightInfoPainter.Draw(AText(std::format("{}", 10 / AGetPvzBase()->TickMs()), 8, 575), 0xFF000000);
-        if (AGetPvzBase()->TickMs() == 1) {
-            fightInfoPainter.Draw(AText(".", 26, 575), 0xFF000000);
-            fightInfoPainter.Draw(AText("0", 30, 575), 0xFF000000);
-        } else {
-            fightInfoPainter.Draw(AText(".", 17, 575), 0xFF000000);
-            fightInfoPainter.Draw(AText(1000 / AGetPvzBase()->TickMs() % 100 ? std::format("{}", 1000 / AGetPvzBase()->TickMs() % 100) : "00", 21, 575), 0xFF000000);
-        }
-        fightInfoPainter.Draw(AText("x", 39, 575), 0xFF000000);
-    }
-
-    // 落点预览
-    if (settings.CobColPreview && AGetMainObject()->MouseAttribution()->Type() == 8) {
-        backgroundPainter.Draw(ARect(AGetMainObject()->MouseAttribution()->MRef<int>(0x8) + 1, AGetMainObject()->MouseAttribution()->MRef<int>(0xC) + 22, 49, 14), 0xC0FFFFFF);
-        fightInfoPainter.Draw(AText(std::format("{}.", ((AGetMainObject()->MouseAttribution()->MRef<int>(0x8) + 25) / 80) < 10 ? std::format("{}", (AGetMainObject()->MouseAttribution()->MRef<int>(0x8) + 25) / 80) : "X"), AGetMainObject()->MouseAttribution()->MRef<int>(0x8), AGetMainObject()->MouseAttribution()->MRef<int>(0xC) + 18), 0xFF000000);
-        fightInfoPainter.Draw(AText(std::format("{:04}", ((AGetMainObject()->MouseAttribution()->MRef<int>(0x8) + 25) % 80 * 125)), AGetMainObject()->MouseAttribution()->MRef<int>(0x8) + 13, AGetMainObject()->MouseAttribution()->MRef<int>(0xC) + 18), 0xFF000000);
-    }
-
-    // 罐子统计
-    if (settings.VBEStat && AMRef<int>(0x6A9EC0, 0x7F8) == AAsm::SCARY_POTTER_ENDLESS) {
-        std::vector<int> VBStat(13, 0);
-        for (auto& Item : aAlivePlaceItemFilter) {
-            if (Item.Type() != 7)
-                continue;
-            if (Item.MRef<int>(0x44) == 1) {
-                if (Item.MRef<int>(0x40) == 0)
-                    ++VBStat[1];
-                if (Item.MRef<int>(0x40) == 52)
-                    ++VBStat[2];
-                if (Item.MRef<int>(0x40) == 18)
-                    ++VBStat[3];
-                if (Item.MRef<int>(0x40) == 5)
-                    ++VBStat[4];
-                if (Item.MRef<int>(0x40) == 17)
-                    ++VBStat[5];
-                if (Item.MRef<int>(0x40) == 4)
-                    ++VBStat[6];
-                if (Item.MRef<int>(0x40) == 3)
-                    ++VBStat[7];
-                if (Item.MRef<int>(0x40) == 25)
-                    ++VBStat[8];
-            } else if (Item.MRef<int>(0x44) == 3) {
-                ++VBStat[0];
-            } else if (Item.MRef<int>(0x44) == 2) {
-                if (Item.MRef<int>(0x3C) == 0)
-                    ++VBStat[9];
-                if (Item.MRef<int>(0x3C) == 4)
-                    ++VBStat[10];
-                if (Item.MRef<int>(0x3C) == 15)
-                    ++VBStat[11];
-                if (Item.MRef<int>(0x3C) == 23)
-                    ++VBStat[12];
-            }
-        }
-        fightInfoPainter.Draw(AText(std::format("{}阳\n\n{}单\n\n{}双\n\n{}三\n\n{}冰\n\n{}窝\n\n{}雷\n\n{}坚\n\n{}灯\n\n{}普\n\n{}桶\n\n{}丑\n\n{}巨", VBStat[0], VBStat[1], VBStat[2], VBStat[3], VBStat[4], VBStat[5], VBStat[6], VBStat[7], VBStat[8], VBStat[9], VBStat[10], VBStat[11], VBStat[12]), 770, 120), settings.VBEStatARGB);
-    }
-}
-
-// 显示栈位，-1 = 关闭，0 = 前场，1 = 全部
-// 这段逻辑最后更改的时间为20260305
-
-inline void FightInfoDrawer::DrawIndex(const Settings& settings) {
-    if (ShowIndexState == -1)
-        return;
-    std::vector<int> RightmostPlantCol(6, -1);
-    if (ShowIndexState)
-        LeftmostVisibleArea.assign(6, -1);
-    for (auto& Plant : aAlivePlantFilter) {
-        int PlantCol = Plant.Col();
-        if (Plant.Type() == ACOB_CANNON) // 炮判定前轮
-            PlantCol = Plant.Col() + 1;
-        if (RightmostPlantCol[Plant.Row()] < PlantCol) // 检查最右植物
-            RightmostPlantCol[Plant.Row()] = PlantCol;
-        if (PlantCol < LeftmostVisibleArea[Plant.Row()])
-            continue;
-        int RectHeight = 11;
-        if (ShowInfoState >= 0 && Plant.Hp() < Plant.HpMax())
-            RectHeight = 0;
-        int RectWidth = 21;
-        int DigitOffset = 0;
-        if (Plant.Index() < 100) {
-            RectWidth = 14;
-            DigitOffset = 4;
-        }
-        if (Plant.Index() < 10) {
-            RectWidth = 7;
-            DigitOffset = 7;
-        }
-        if (Plant.Index() < AGetMainObject()->PlantNext()) { // 不可栈位垫，7像素蓝色七段码
-            int SizeOffset = 1;
-            int FontSize = 2;
-            if (Plant.Type() == ACOB_CANNON)
-                SegPainter.Draw(A7Seg(Plant.Index(), Plant.Xi() + 110 + DigitOffset + SizeOffset, Plant.Yi() + 26 + SizeOffset, FontSize, 1, 2), SizeOffset + 1, 0xFF0040FF, settings.CobGloomHPARGB, settings.CobGloomHP ? RectHeight : 11);
-            else if (Plant.Type() == AGLOOM_SHROOM)
-                SegPainter.Draw(A7Seg(Plant.Index(), Plant.Xi() + 30 + DigitOffset + SizeOffset, Plant.Yi() + 26 + SizeOffset, FontSize, 1, 2), SizeOffset + 1, 0xFF0040FF, settings.CobGloomHPARGB, settings.CobGloomHP ? RectHeight : 11);
-            else if (Plant.Type() == ACOFFEE_BEAN)
-                SegPainter.Draw(A7Seg(Plant.Index(), Plant.Xi() + 30 + DigitOffset + SizeOffset, Plant.Yi() + 14 + SizeOffset, FontSize, 1, 2), SizeOffset + 1, 0xFF0040FF, settings.OtherPlantHPARGB, settings.OtherPlantHP ? RectHeight : 11);
-            else if (ARangeIn(Plant.Type(), {AWALL_NUT, ATALL_NUT, ASPIKEROCK}))
-                SegPainter.Draw(A7Seg(Plant.Index(), Plant.Xi() + 30 + DigitOffset + SizeOffset, Plant.Yi() + 26 + SizeOffset, FontSize, 1, 2), SizeOffset + 1, 0xFF0040FF, settings.NutSpikeHPARGB, settings.NutSpikeHP ? RectHeight : 11);
-            else if (Plant.Type() == APUMPKIN)
-                SegPainter.Draw(A7Seg(Plant.Index(), Plant.Xi() + 54 + DigitOffset + SizeOffset, Plant.Yi() + 46 + SizeOffset, FontSize, 1, 2), SizeOffset + 1, 0xFF0040FF, settings.PumpkinHPARGB, settings.PumpkinHP ? RectHeight : 11);
-            else if (ARangeIn(Plant.Type(), {ALILY_PAD, AFLOWER_POT}))
-                SegPainter.Draw(A7Seg(Plant.Index(), Plant.Xi() + 6 + DigitOffset + SizeOffset, Plant.Yi() + 58 + SizeOffset, FontSize, 1, 2), SizeOffset + 1, 0xFF0040FF, settings.LilyPotHPARGB, settings.LilyPotHP ? RectHeight : 11);
-            else if (Plant.Type() == ASQUASH)
-                SegPainter.Draw(A7Seg(Plant.Index(), Plant.Xi() + 30 + DigitOffset + SizeOffset, Plant.Yi() + 26 + SizeOffset, FontSize, 1, 2), SizeOffset + 1, 0xFF0040FF, settings.OtherPlantHPARGB, settings.OtherPlantHP ? RectHeight : 11);
-            else
-                SegPainter.Draw(A7Seg(Plant.Index(), MyColToX(Plant.Col() + 1) + 30 + DigitOffset + SizeOffset, MyRowToY(Plant.Row() + 1, Plant.Col() + 1) + 26 + SizeOffset, FontSize, 1, 2), SizeOffset + 1, 0xFF0040FF, settings.OtherPlantHPARGB, settings.OtherPlantHP ? RectHeight : 11);
-        } else { // 可栈位垫，9像素黑色Arial
-            if (Plant.Type() == ACOB_CANNON) {
-                backgroundPainter.Draw(ARect(Plant.Xi() + 109 + DigitOffset, Plant.Yi() + 25, RectWidth, settings.CobGloomHP ? RectHeight : 11), settings.CobGloomHPARGB);
-                lowIndexPainter.Draw(AText(std::format("{}", Plant.Index()), Plant.Xi() + 108 + DigitOffset, Plant.Yi() + 21), 0xFF000000);
-            } else if (Plant.Type() == AGLOOM_SHROOM) {
-                backgroundPainter.Draw(ARect(Plant.Xi() + 29 + DigitOffset, Plant.Yi() + 25, RectWidth, settings.CobGloomHP ? RectHeight : 11), settings.CobGloomHPARGB);
-                lowIndexPainter.Draw(AText(std::format("{}", Plant.Index()), Plant.Xi() + 28 + DigitOffset, Plant.Yi() + 21), 0xFF000000);
-            } else if (Plant.Type() == ACOFFEE_BEAN) {
-                backgroundPainter.Draw(ARect(Plant.Xi() + 29 + DigitOffset, Plant.Yi() + 13, RectWidth, settings.OtherPlantHP ? RectHeight : 11), settings.OtherPlantHPARGB);
-                lowIndexPainter.Draw(AText(std::format("{}", Plant.Index()), Plant.Xi() + 28 + DigitOffset, Plant.Yi() + 9), 0xFF000000);
-            } else if (ARangeIn(Plant.Type(), {AWALL_NUT, ATALL_NUT, ASPIKEROCK})) {
-                backgroundPainter.Draw(ARect(Plant.Xi() + 29 + DigitOffset, Plant.Yi() + 25, RectWidth, settings.NutSpikeHP ? RectHeight : 11), settings.NutSpikeHPARGB);
-                lowIndexPainter.Draw(AText(std::format("{}", Plant.Index()), Plant.Xi() + 28 + DigitOffset, Plant.Yi() + 21), 0xFF000000);
-            } else if (Plant.Type() == APUMPKIN) {
-                backgroundPainter.Draw(ARect(Plant.Xi() + 53 + DigitOffset, Plant.Yi() + 45, RectWidth, settings.PumpkinHP ? RectHeight : 11), settings.PumpkinHPARGB);
-                lowIndexPainter.Draw(AText(std::format("{}", Plant.Index()), Plant.Xi() + 52 + DigitOffset, Plant.Yi() + 41), 0xFF000000);
-            } else if (ARangeIn(Plant.Type(), {ALILY_PAD, AFLOWER_POT})) {
-                backgroundPainter.Draw(ARect(Plant.Xi() + 5 + DigitOffset, Plant.Yi() + 57, RectWidth, settings.LilyPotHP ? RectHeight : 11), settings.LilyPotHPARGB);
-                lowIndexPainter.Draw(AText(std::format("{}", Plant.Index()), Plant.Xi() + 4 + DigitOffset, Plant.Yi() + 53), 0xFF000000);
-            } else if (Plant.Type() == ASQUASH) {
-                backgroundPainter.Draw(ARect(Plant.Xi() + 29 + DigitOffset, Plant.Yi() + 25, RectWidth, settings.OtherPlantHP ? RectHeight : 11), settings.OtherPlantHPARGB);
-                lowIndexPainter.Draw(AText(std::format("{}", Plant.Index()), Plant.Xi() + 28 + DigitOffset, Plant.Yi() + 21), 0xFF000000);
-            } else {
-                backgroundPainter.Draw(ARect(MyColToX(Plant.Col() + 1) + 29 + DigitOffset, MyRowToY(Plant.Row() + 1, Plant.Col() + 1) + 25, RectWidth, settings.OtherPlantHP ? RectHeight : 11), settings.OtherPlantHPARGB);
-                lowIndexPainter.Draw(AText(std::format("{}", Plant.Index()), MyColToX(Plant.Col() + 1) + 28 + DigitOffset, MyRowToY(Plant.Row() + 1, Plant.Col() + 1) + 21), 0xFF000000);
-            }
-        }
-    }
-    // 前场左扩
-    for (int Row : {0, 1, 2, 3, 4, 5}) {
-        if (LeftmostVisibleArea[Row] > RightmostPlantCol[Row])
-            LeftmostVisibleArea[Row] = RightmostPlantCol[Row];
-    }
-    // 铲子栈位
-    if (AGetMainObject()->PlantNext() < 10) {
-        backgroundPainter.Draw(ARect(634, 8, 19, 26), 0xFF4CAF50);
-        nextIndexPainter.Draw(AText(std::format("{}", AGetMainObject()->PlantNext()), 634, 2), 0xFF000000);
-    } else if (AGetMainObject()->PlantNext() < 100) {
-        backgroundPainter.Draw(ARect(626, 8, 35, 26), 0xFF4CAF50);
-        nextIndexPainter.Draw(AText(std::format("{}", AGetMainObject()->PlantNext()), 626, 2), 0xFF000000);
-    } else {
-        backgroundPainter.Draw(ARect(618, 8, 51, 26), 0xFF4CAF50);
-        nextIndexPainter.Draw(AText(std::format("{}", AGetMainObject()->PlantNext()), 618, 2), 0xFF000000);
-    }
-}
-
-
-
-class MaidController {
-public:
-    uint32_t phase = AMaidCheats::MC_STOP;
-
-    void Apply() { AMaidCheats::Phase() = phase; }
-    void Summon() { phase = AMaidCheats::MC_CALL_PARTNER; Apply(); CreateCaption("Maid: Summon"); }
-    void Dance() { phase = AMaidCheats::MC_DANCING; Apply(); CreateCaption("Maid: Dance"); }
-    void Move() { phase = AMaidCheats::MC_MOVE; Apply(); CreateCaption("Maid: Forward"); }
-    void Stop() { phase = AMaidCheats::MC_STOP; Apply(); CreateCaption("Maid: End"); }
-    void Reset() { phase = AMaidCheats::MC_STOP; Apply(); }
-};
 
 class ActivationMarker : public ATickRunnerWithNoStart, public AOrderedEnterFightHook<-1> {
+public:
+    bool enabled = true;
+    int markerDuration = 300;
+    uint32_t PMarkerARGB = 0xFFFFA000;
+    uint32_t IMarkerARGB = 0xFF00A0FF;
+    uint32_t NMarkerARGB = 0xFF353535;
+    uint32_t AMarkerARGB = 0xFFC00000;
+    uint32_t JMarkerARGB = 0xFFFF0040;
+    uint32_t WMarkerARGB = 0xFFA0B060;
+    uint32_t MMarkerARGB = 0xFFDAC060;
+    MyPainter painter;
+
 protected:
-    struct Info { ATime begin; AGrid grid; int stackIndex; uint32_t argb; std::string mainText; std::string colText; };
+    struct Info {
+        ATime begin;
+        AGrid grid;
+        int stackIndex;
+        uint32_t argb;
+        std::string mainText;
+        std::string colText;
+    };
+
     inline static ActivationMarker* instance = nullptr;
     std::deque<Info> infos;
-    const ClockState* clock = nullptr;
-    int Clock(const ATime& time) { return clock ? clock->Clock(time) : INT_MIN; }
+
+    int Clock(const ATime& time) {
+        if (time.wave <= 1)
+            return time.time;
+        int idx = time.wave - 1;
+        return 0 <= idx && idx < int(WaveClock.size()) && WaveClock[idx] ? WaveClock[idx] + time.time : INT_MIN;
+    }
+
     void Prune(const ATime& now) {
-        if (markerDuration <= 0) { infos.clear(); return; }
+        if (markerDuration <= 0) {
+            infos.clear();
+            return;
+        }
         auto elapsed = [this, now](const Info& info) {
             int beginClock = Clock(info.begin), nowClock = Clock(now);
             if (info.begin.wave == now.wave && (beginClock == INT_MIN || nowClock == INT_MIN))
                 beginClock = info.begin.time, nowClock = now.time;
             return beginClock != INT_MIN && nowClock != INT_MIN ? nowClock - beginClock : (now.wave < info.begin.wave ? -1 : markerDuration);
         };
-        while (!infos.empty() && elapsed(infos.back()) < 0) infos.pop_back();
-        while (!infos.empty() && elapsed(infos.front()) >= markerDuration) infos.pop_front();
+        while (!infos.empty() && elapsed(infos.back()) < 0)
+            infos.pop_back();
+        while (!infos.empty() && elapsed(infos.front()) >= markerDuration)
+            infos.pop_front();
     }
+
     void Add(const AGrid& grid, uint32_t argb, std::string mainText, std::string colText) {
-        if (AGetMainObject() == nullptr || !clock) return;
-        Prune(clock->now);
-        if (markerDuration <= 0) return;
+        if (AGetMainObject() == nullptr)
+            return;
+        Prune(Now);
+        if (markerDuration <= 0)
+            return;
         bool used[4] = {};
         int sameGridCount = 0;
-        for (const auto& info : infos) if (info.grid == grid) { used[info.stackIndex % 4] = true; ++sameGridCount; }
-        int stackIndex = sameGridCount;
-        for (int i = 0; i < 4; ++i) if (!used[i]) { stackIndex = i; break; }
-        infos.push_back({clock->now, grid, stackIndex, argb, std::move(mainText), std::move(colText)});
-    }
-    virtual void _EnterFight() override { Reset(); }
-    static void __stdcall AsmCallBack0x4666A0(AAsmCodeContext* context) {
-        if (!instance || !instance->enabled || !instance->clock) return;
-        APlant* plant = *(APlant**)(context->esp + 4);
-        if (!plant) return;
-        std::map<APlantType, uint32_t> plantColors = {
-            {AICE_SHROOM, instance->IMarkerARGB}, {ADOOM_SHROOM, instance->NMarkerARGB}, {ACHERRY_BOMB, instance->AMarkerARGB}, {AJALAPENO, instance->JMarkerARGB}, {APOTATO_MINE, instance->MMarkerARGB},
-        };
-        auto colors = plantColors.find(static_cast<APlantType>(plant->Type()));
-        if (colors == plantColors.end()) return;
-        instance->Add(AGrid(plant->Row() + 1, plant->Col() + 1), colors->second, std::format("{:<4}  00", instance->clock->now.time + 1), std::format("{}.", plant->Col() + 1));
-    }
-    static void __stdcall AsmCallBack0x4606F0(AAsmCodeContext* context) {
-        if (!instance || !instance->enabled || !instance->clock) return;
-        APlant* plant = *(APlant**)(context->esp + 4);
-        if (!plant) return;
-        int abscissa = plant->Abscissa() + 40, col = abscissa / 80;
-        instance->Add(AGrid(plant->Row() + 1, plant->Col() + 1), instance->WMarkerARGB, std::format("{:<4}  {:02}", instance->clock->now.time + 1, abscissa % 80 * 125 / 100), col < 10 ? std::format("{}.", col) : "X.");
-    }
-    static void __stdcall AsmCallBack0x46D85B(AAsmCodeContext* context) {
-        if (!instance || !instance->enabled || !instance->clock) return;
-        AProjectile* p = (AProjectile*)(context->ebp);
-        if (!p) return;
-        int targetAbscissa = p->CobTargetAbscissa(), col = targetAbscissa / 80;
-        instance->Add(AGrid(p->CobTargetRow() + 1, int(targetAbscissa / 80.0f - 0.5) + 1), instance->PMarkerARGB, std::format("{:<4}  {:02}", instance->clock->now.time + 1, targetAbscissa % 80 * 125 / 100), col < 10 ? std::format("{}.", col) : "X.");
-    }
-public:
-    bool enabled = true;
-    int markerDuration = 300;
-    uint32_t PMarkerARGB = 0xFFFFA000, IMarkerARGB = 0xFF00A0FF, NMarkerARGB = 0xFF353535, AMarkerARGB = 0xFFC00000, JMarkerARGB = 0xFFFF0040, WMarkerARGB = 0xFFA0B060, MMarkerARGB = 0xFFDAC060;
-    MyPainter painter;
-    ActivationMarker() = default;
-    void ApplySettings(const Settings& settings) {
-        enabled = settings.ActivationTime; markerDuration = settings.MarkerDuration; PMarkerARGB = settings.PMarkerARGB; IMarkerARGB = settings.IMarkerARGB; NMarkerARGB = settings.NMarkerARGB; AMarkerARGB = settings.AMarkerARGB; JMarkerARGB = settings.JMarkerARGB; WMarkerARGB = settings.WMarkerARGB; MMarkerARGB = settings.MMarkerARGB;
-    }
-    void Reset() { infos.clear(); }
-    void Draw(const ClockState& clockState) {
-        clock = &clockState;
-        if (AGetMainObject() == nullptr) return;
-        Prune(clockState.now);
-        if (!enabled) return;
         for (const auto& info : infos) {
-            int x = MyColToX(info.grid.col), y = MyRowToY(info.grid.row, info.grid.col), offset = info.stackIndex % 4 * 15;
+            if (info.grid == grid) {
+                used[info.stackIndex % 4] = true;
+                ++sameGridCount;
+            }
+        }
+        int stackIndex = sameGridCount;
+        for (int i = 0; i < 4; ++i)
+            if (!used[i]) {
+                stackIndex = i;
+                break;
+            }
+        infos.push_back({Now, grid, stackIndex, argb, std::move(mainText), std::move(colText)});
+    }
+
+    virtual void _EnterFight() override {infos.clear();}
+
+    // void Plant::DoSpecial()
+    static void __stdcall AsmCallBack0x4666A0(AAsmCodeContext* context) {
+        if (!instance || !instance->enabled)
+            return;
+        APlant* plant = *(APlant**)(context->esp + 4);
+        if (!plant)
+            return;
+        std::map<APlantType, uint32_t> plant_colors = {
+            {AICE_SHROOM, instance->IMarkerARGB},
+            {ADOOM_SHROOM, instance->NMarkerARGB},
+            {ACHERRY_BOMB, instance->AMarkerARGB},
+            {AJALAPENO, instance->JMarkerARGB},
+            {APOTATO_MINE, instance->MMarkerARGB},
+            // {ABLOVER, 0xFF00A000},
+            // {ACOFFEE_BEAN, 0x00000000},
+            // {AUMBRELLA_LEAF, 0x00000000},
+        };
+        auto colors = plant_colors.find(static_cast<APlantType>(plant->Type()));
+        if (colors == plant_colors.end())
+            return;
+        instance->Add(
+            AGrid(plant->Row() + 1, plant->Col() + 1), colors->second, 
+            std::format("{:<4}  00", Now.time + 1), 
+            std::format("{}.", plant->Col() + 1)
+        );
+    }
+
+    // void Plant::DoSquashDamage()
+    static void __stdcall AsmCallBack0x4606F0(AAsmCodeContext* context) {
+        if (!instance || !instance->enabled)
+            return;
+        APlant* plant = *(APlant**)(context->esp + 4);
+        if (!plant)
+            return;
+        int abscissa = plant->Abscissa() + 40, col = abscissa / 80;
+        instance->Add(
+            AGrid(plant->Row() + 1, plant->Col() + 1), instance->WMarkerARGB, 
+            std::format("{:<4}  {:02}", Now.time + 1, abscissa % 80 * 125 / 100), 
+            col < 10 ? std::format("{}.", col) : "X."
+        );
+    }
+
+    // void Projectile::UpdateLobMotion()
+    // mBoard->KillAllZombiesInRadius(mRow, mPosX + 80, mPosY + 40, 115, 1, true, mDamageRangeFlags);
+    static void __stdcall AsmCallBack0x46D85B(AAsmCodeContext* context) {
+        if (!instance || !instance->enabled)
+            return;
+        AProjectile* p = (AProjectile*)(context->ebp);
+        if (!p)
+            return;
+        int targetAbscissa = p->CobTargetAbscissa(), col = targetAbscissa / 80;
+        instance->Add(
+            AGrid(p->CobTargetRow() + 1, int(targetAbscissa / 80.0f - 0.5) + 1), instance->PMarkerARGB, 
+            std::format("{:<4}  {:02}", Now.time + 1, targetAbscissa % 80 * 125 / 100), 
+            col < 10 ? std::format("{}.", col) : "X."
+        );
+    }
+
+public:
+    void Draw() {
+        if (AGetMainObject() == nullptr)
+            return;
+
+        Prune(Now);
+        if (!enabled)
+            return;
+
+        for (const auto& info : infos) {
+            int x = MyColToX(info.grid.col);
+            int y = MyRowToY(info.grid.row, info.grid.col);
+            int offset = info.stackIndex % 4 * 15;
             painter.Draw(ARect(x + 4, y + 9 + offset, 72, 14), info.argb);
             painter.Draw(AText(info.mainText, x + 3, y + 5 + offset), 0xFFFFFFFF, 0x0);
             painter.Draw(AText(info.colText, x + 44, y + 5 + offset), 0xFFFFFFFF, 0x0);
         }
     }
-    void Start(const ClockState& clockState) {
-        clock = &clockState; instance = this;
+
+    void Start() {
+        instance = this;
         AInsertUniqueAsmCode(0x4666A0, AsmCallBack0x4666A0);
         AInsertUniqueAsmCode(0x4606F0, AsmCallBack0x4606F0);
         AInsertUniqueAsmCode(0x46D85B, AsmCallBack0x46D85B);
     }
 };
 
+// 六路种植相关代码
+// 鼠标座标转换成格子
 inline int MouseXToCol(int X) { return (X + 65) / 80; }
 inline int MouseXYToRow(int X, int Y) {
     int Col = (X + 65) / 80;
@@ -1634,147 +1100,5 @@ inline void PlantShovelFireForbiddenGrid() {
         break;
     }
 }
-
-class ActionController {
-public:
-    bool uiVisible = true;
-    bool enabled = false;
-
-    void Speed10x() { AGetPvzBase()->TickMs() = AGetPvzBase()->TickMs() == 1 ? 10 : 1; }
-    void SkipToWave(const Settings& settings) { ASkipTick(settings.SkipTickWave, 0); }
-    void Restart() {
-        ABackToMain();
-        AEnterGame(AMRef<int>(0x6A9EC0, 0x7F8));
-    }
-    void ReplayRewind(const Settings& settings) {
-        if (aReplay.GetState() == aReplay.PLAYING) {
-            aReplay.Pause();
-            aReplay.ShowOneTick(aReplay.GetPlayIdx() - settings.tickRewindCount);
-        } else {
-            Paused = true;
-            PausedSlowed = false;
-            ASetAdvancedPause(Paused, false, 0);
-            aReplay.ShowOneTick(aReplay.GetRecordIdx() - settings.tickRewindCount);
-        }
-    }
-    void ToggleAdvancedPause() {
-        if (aReplay.GetState() == aReplay.PLAYING) {
-            aReplay.IsPaused() ? aReplay.GoOn() : aReplay.Pause();
-        } else {
-            if (PausedCd < 480)
-                return;
-            Paused = !Paused;
-            PausedSlowed = false;
-            ASetAdvancedPause(Paused, false, 0);
-        }
-    }
-    void NextTick() {
-        if (aReplay.GetState() == aReplay.PLAYING) {
-            aReplay.Pause();
-            aReplay.ShowOneTick(aReplay.GetPlayIdx() + 1);
-        } else {
-            if (PausedCd < 480)
-                return;
-            Paused = false;
-            PausedSlowed = false;
-            ASetAdvancedPause(Paused, false, 0);
-            AConnect(ANowDelayTime(1), [] {
-                Paused = !Paused;
-                ASetAdvancedPause(Paused, false, 0);
-            });
-        }
-    }
-    void ToggleSeedChooserTop() { AMRef<int>(0x416DBE) = AMRef<int>(0x416DBE) == 699999 ? 100001 : 699999; }
-    void ToggleDanceFast() {
-        DCState = DCState == 0 ? -1 : 0;
-        SetDance(false);
-        CreateCaption(DCState == 0 ? "DanceCheat: Fast" : "DanceCheat: Off");
-    }
-    void ToggleDanceSlow() {
-        DCState = DCState == 1 ? -1 : 1;
-        SetDance(false);
-        CreateCaption(DCState == 1 ? "DanceCheat: Slow" : "DanceCheat: Off");
-    }
-    void ToggleAutoCollect() { *(uint8_t*)0x0043158F = *(uint8_t*)0x0043158F == 0xEB ? 0x75 : 0xEB; }
-    void ToggleWindFix() {
-        *(uint8_t*)0x46DCE3 == 0x83 ? *(std::array<uint8_t, 10>*)0x46DCE3 = {0x75, 0x08, 0xD9, 0x46, 0x34, 0xD8, 0xC1, 0xD9, 0x5E, 0x34} : *(std::array<uint8_t, 10>*)0x46DCE3 = {0x83, 0x7E, 0x5C, 0x0B, 0x75, 0x04, 0xDD, 0xD8, 0xEB, 0x1B};
-        CreateCaption(*(uint8_t*)0x46DCE3 == 0x83 ? "FixWind: On" : "FixWind: Off");
-    }
-    void ToggleGameUi() {
-        uiVisible = !uiVisible;
-        AMRef<bool>(0x6A9EC0, 0x768, 0x144, 0x18) = AMRef<bool>(0x6A9EC0, 0x768, 0x55F1) = uiVisible;
-        AMRef<int>(0x6A9EC0, 0x768, 0x55F4) = AMRef<bool>(0x6A9EC0, 0x768, 0x148, 0xF9) = !uiVisible;
-    }
-    void ToggleAnimationSkip() { AMRef<bool>(0x6A9EC0, 0x7F5) = AMRef<bool>(0x6A9EC0, 0x7F5) ? false : true; }
-    void ToggleSnapshotMode() {
-        SnapshotModeSwitch = !SnapshotModeSwitch;
-        CreateCaption(SnapshotModeSwitch ? "SnapshotMode: On" : "SnapshotMode: Off");
-        ASetAdvancedPause(SnapshotModeSwitch, false, 0);
-        AMRef<int>(0x6A9EC0, 0x768, 0x30) = 0;
-        AMRef<int>(0x6A9EC0, 0x768, 0x34) = 0;
-        if (Paused)
-            ASetAdvancedPause(Paused, false, 0);
-    }
-    void MoveViewUp() { AMRef<int>(0x6A9EC0, 0x768, 0x34) -= 5; }
-    void MoveViewDown() { AMRef<int>(0x6A9EC0, 0x768, 0x34) += 5; }
-    void MoveViewLeft() { AMRef<int>(0x6A9EC0, 0x768, 0x30) -= 5; }
-    void MoveViewRight() { AMRef<int>(0x6A9EC0, 0x768, 0x30) += 5; }
-    void OneKeySwitch(FightInfoDrawer& drawer, SmartRemoveController& smartRemove, WarningController& warning) {
-        enabled = !enabled;
-        if (enabled) {
-            CreateCaption("A-TAS: On", {BOTTOMFAST});
-            *(uint8_t*)0x0043158F = 0xEB;
-            drawer.SetInfoState(0);
-            drawer.SetIndexState(0);
-            smartRemove.enabled = true;
-            warning.BalloonWarning = true;
-        } else {
-            CreateCaption("A-TAS: Off");
-            *(uint8_t*)0x0043158F = 0x75;
-            drawer.Reset();
-            smartRemove.Reset();
-            warning.BalloonWarning = false;
-        }
-    }
-    void ResetGame(MaidController& maid, FightInfoDrawer& drawer, SmartRemoveController& smartRemove, WarningController& warning) {
-        CreateCaption("Reset");
-        ASetAdvancedPause(false, false, 0);
-        Paused = false;
-        PausedSlowed = false;
-        AMRef<int>(0x6A9EC0, 0x768, 0x30) = 0;
-        AMRef<int>(0x6A9EC0, 0x768, 0x34) = 0;
-        AGetPvzBase()->TickMs() = 10;
-        AMRef<bool>(0x6A9EAB) = false;
-        DCState = -1;
-        SetDance(false);
-        maid.Reset();
-        *(std::array<uint8_t, 10>*)0x46DCE3 = {0x75, 0x08, 0xD9, 0x46, 0x34, 0xD8, 0xC1, 0xD9, 0x5E, 0x34};
-        SetMusic(AGetMainObject()->Scene() + 1);
-        AMRef<int>(0x416DBE) = 100001;
-        uiVisible = true;
-        AMRef<bool>(0x6A9EC0, 0x768, 0x144, 0x18) = AMRef<bool>(0x6A9EC0, 0x768, 0x55F1) = true;
-        AMRef<int>(0x6A9EC0, 0x768, 0x55F4) = AMRef<bool>(0x6A9EC0, 0x768, 0x148, 0xF9) = false;
-        enabled = false;
-        *(uint8_t*)0x0043158F = 0x75;
-        drawer.Reset();
-        smartRemove.Reset();
-        warning.Reset();
-    }
-};
-
-// 主体函数
-
-
-struct Runtime {
-    ClockState clock;
-    FightInfoDrawer drawer;
-    SmartRemoveController smartRemove;
-    WarningController warning;
-    MaidController maid;
-    ActionController action;
-    ActivationMarker activationMarker;
-};
-
-} // namespace ATas
 
 #endif // __ATAS_H__
