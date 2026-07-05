@@ -1538,217 +1538,32 @@ public:
 
 // 六路种植相关代码
 // 鼠标座标转换成格子
-int MouseXToCol(int X) { return (X + 65) / 80; }
-int MouseXYToRow(int X, int Y) {
-    int Col = (X + 65) / 80;
-    if (aFieldInfo.rowHeight == 100)
-        return (Y + 55) / 100;
-    else if (aFieldInfo.isRoof)
-        return (Y + 40 - (Col < 5 ? (5 - Col) * 20 : 0)) / 85; // 天台
-    return (Y + 40) / 85;
-}
-// 土炮点击扣阳光种植回冷却函数
-void ClickSunPlantCd(int Type, int Row, int Col) {
-    AAsm::MouseClick(0, 0, 1);
-    AGetMainObject()->Sun() -= AAsm::GetSeedSunVal(Type >= 49 ? 48 : Type, Type - 49);
-    AAsm::PutPlant(Row - 1, Col - 1, static_cast<APlantType>(Type));
-    for (auto&& Seed : ABasicFilter<ASeed>()) {
-        if ((Type >= 49 ? Seed.ImitatorType() : Seed.Type()) == (Type >= 49 ? Type - 49 : Type)) {
-            Seed.InitialCd() = AMRef<int>(0x69F2B0 + 0x14 + 0x24 * (Type >= 49 ? Type - 49 : Type));
-            Seed.IsUsable() = false;
-            Seed.MRef<bool>(0x49 + 0x28) = true;
-            ++Seed.MRef<int>(0x4C + 0x28);
-        }
-    }
-}
-// 对六路或屋顶水路的格子进行操作
-void PlantShovelFireForbiddenGrid() {
-    int Row = MouseXYToRow(AGetMainObject()->MouseAttribution()->MRef<int>(0x8), AGetMainObject()->MouseAttribution()->MRef<int>(0xC));
-    int Col = MouseXToCol(AGetMainObject()->MouseAttribution()->MRef<int>(0x8));
-    int MousePlant = AGetMainObject()->MouseAttribution()->MRef<int>(0x28);
-    int MouseMPlant = AGetMainObject()->MouseAttribution()->MRef<int>(0x2C);
-    // 屋顶水路种植
-    if (MousePlant != -1 && (AGetPlantPtr(Row, Col, ALILY_PAD) || AGetPlantPtr(Row, Col, ACATTAIL))) {
-        switch (MousePlant) {
-        case AGATLING_PEA:
-            if (!AGetPlantPtr(Row, Col, AREPEATER))
-                break;
-            AAsm::RemovePlant(AGetPlantPtr(Row, Col, AREPEATER));
-            ClickSunPlantCd(MousePlant, Row, Col);
-            break;
-        case ATWIN_SUNFLOWER:
-            if (!AGetPlantPtr(Row, Col, ASUNFLOWER))
-                break;
-            AAsm::RemovePlant(AGetPlantPtr(Row, Col, ASUNFLOWER));
-            ClickSunPlantCd(MousePlant, Row, Col);
-            break;
-        case AGLOOM_SHROOM:
-            if (!AGetPlantPtr(Row, Col, AFUME_SHROOM))
-                break;
-            AAsm::RemovePlant(AGetPlantPtr(Row, Col, AFUME_SHROOM));
-            ClickSunPlantCd(MousePlant, Row, Col);
-            break;
-        case ACATTAIL:
-            if (!AGetPlantPtr(Row, Col, ALILY_PAD))
-                break;
-            AAsm::RemovePlant(AGetPlantPtr(Row, Col, ALILY_PAD));
-            ClickSunPlantCd(MousePlant, Row, Col);
-            break;
-        case AWINTER_MELON:
-            if (!AGetPlantPtr(Row, Col, AMELON_PULT))
-                break;
-            AAsm::RemovePlant(AGetPlantPtr(Row, Col, AMELON_PULT));
-            ClickSunPlantCd(MousePlant, Row, Col);
-            break;
-        case AGOLD_MAGNET:
-            if (!AGetPlantPtr(Row, Col, AMAGNET_SHROOM))
-                break;
-            AAsm::RemovePlant(AGetPlantPtr(Row, Col, AMAGNET_SHROOM));
-            ClickSunPlantCd(MousePlant, Row, Col);
-            break;
-        case ASPIKEROCK:
-            if (!AGetPlantPtr(Row, Col, ASPIKEWEED))
-                break;
-            AAsm::RemovePlant(AGetPlantPtr(Row, Col, ASPIKEWEED));
-            ClickSunPlantCd(MousePlant, Row, Col);
-            break;
-        case ACOB_CANNON:
-            if (!AGetPlantPtr(Row, Col, AKERNEL_PULT) || !AGetPlantPtr(Row, Col + 1, AKERNEL_PULT))
-                break;
-            AAsm::RemovePlant(AGetPlantPtr(Row, Col, AKERNEL_PULT));
-            AAsm::RemovePlant(AGetPlantPtr(Row, Col + 1, AKERNEL_PULT));
-            ClickSunPlantCd(MousePlant, Row, Col);
-            break;
-        case AIMITATOR:
-            if (MouseMPlant != APUMPKIN && AGetPlantPtr(Row, Col))
-                break;
-            if (MouseMPlant == AWALL_NUT && AGetPlantPtr(Row, Col, AWALL_NUT))
-                AAsm::RemovePlant(AGetPlantPtr(Row, Col, AWALL_NUT));
-            if (MouseMPlant == ATALL_NUT && AGetPlantPtr(Row, Col, ATALL_NUT))
-                AAsm::RemovePlant(AGetPlantPtr(Row, Col, ATALL_NUT));
-            if (MouseMPlant == APUMPKIN && AGetPlantPtr(Row, Col, APUMPKIN))
-                AAsm::RemovePlant(AGetPlantPtr(Row, Col, APUMPKIN));
-            ClickSunPlantCd(MouseMPlant + 49, Row, Col);
-            break;
-        default:
-            if (MousePlant != APUMPKIN && AGetPlantPtr(Row, Col))
-                break;
-            if (MousePlant == AWALL_NUT && AGetPlantPtr(Row, Col, AWALL_NUT))
-                AAsm::RemovePlant(AGetPlantPtr(Row, Col, AWALL_NUT));
-            if (MousePlant == ATALL_NUT && AGetPlantPtr(Row, Col, ATALL_NUT))
-                AAsm::RemovePlant(AGetPlantPtr(Row, Col, ATALL_NUT));
-            if (MousePlant == APUMPKIN && AGetPlantPtr(Row, Col, APUMPKIN))
-                AAsm::RemovePlant(AGetPlantPtr(Row, Col, APUMPKIN));
-            ClickSunPlantCd(MousePlant, Row, Col);
-            break;
-        }
-        return;
-    }
-    // 六路铲除点炮种植
-    if (Row != 6)
-        return;
-    // 铲除
-    if (AGetMainObject()->MouseAttribution()->Type() == 6) {
-        if (AGetPlantPtr(Row, Col))
-            AAsm::RemovePlant(AGetPlantPtr(Row, Col));
-        else if (AGetPlantPtr(Row, Col, APUMPKIN))
-            AAsm::RemovePlant(AGetPlantPtr(Row, Col, APUMPKIN));
-        else if (AGetPlantPtr(Row, Col, ALILY_PAD))
-            AAsm::RemovePlant(AGetPlantPtr(Row, Col, ALILY_PAD));
-        else if (AGetPlantPtr(Row, Col, AFLOWER_POT))
-            AAsm::RemovePlant(AGetPlantPtr(Row, Col, AFLOWER_POT));
-        return;
-    }
-    // 点炮
-    if (AGetCobRecoverTime(AGetPlantIndex(Row, Col, ACOB_CANNON)) == 0) {
-        AGetMainObject()->MouseAttribution()->Type() = 8;
-        AGetMainObject()->MouseAttribution()->CannonAddress() = AGetPlantPtr(Row, Col, ACOB_CANNON)->Id();
-        return;
-    }
-    if (AGetCobRecoverTime(AGetPlantIndex(Row, Col - 1, ACOB_CANNON)) == 0) {
-        AGetMainObject()->MouseAttribution()->Type() = 8;
-        AGetMainObject()->MouseAttribution()->CannonAddress() = AGetPlantPtr(Row, Col - 1, ACOB_CANNON)->Id();
-        return;
-    }
-    // 种植
-    if (MousePlant == -1)
-        return;
-    if (MousePlant != AIMITATOR && AAsm::GetPlantRejectType(MousePlant, Row - 1, Col - 1) != AAsm::NIL)
-        return;
-    if (MousePlant == AIMITATOR && AAsm::GetPlantRejectType(MouseMPlant, Row - 1, Col - 1) != AAsm::NIL)
-        return;
-    switch (MousePlant) {
-    case AGATLING_PEA:
-        if (!AGetPlantPtr(Row, Col, AREPEATER))
-            break;
-        AAsm::RemovePlant(AGetPlantPtr(Row, Col, AREPEATER));
-        ClickSunPlantCd(MousePlant, Row, Col);
-        break;
-    case ATWIN_SUNFLOWER:
-        if (!AGetPlantPtr(Row, Col, ASUNFLOWER))
-            break;
-        AAsm::RemovePlant(AGetPlantPtr(Row, Col, ASUNFLOWER));
-        ClickSunPlantCd(MousePlant, Row, Col);
-        break;
-    case AGLOOM_SHROOM:
-        if (!AGetPlantPtr(Row, Col, AFUME_SHROOM))
-            break;
-        AAsm::RemovePlant(AGetPlantPtr(Row, Col, AFUME_SHROOM));
-        ClickSunPlantCd(MousePlant, Row, Col);
-        break;
-    case ACATTAIL:
-        if (!AGetPlantPtr(Row, Col, ALILY_PAD))
-            break;
-        AAsm::RemovePlant(AGetPlantPtr(Row, Col, ALILY_PAD));
-        ClickSunPlantCd(MousePlant, Row, Col);
-        break;
-    case AWINTER_MELON:
-        if (!AGetPlantPtr(Row, Col, AMELON_PULT))
-            break;
-        AAsm::RemovePlant(AGetPlantPtr(Row, Col, AMELON_PULT));
-        ClickSunPlantCd(MousePlant, Row, Col);
-        break;
-    case AGOLD_MAGNET:
-        if (!AGetPlantPtr(Row, Col, AMAGNET_SHROOM))
-            break;
-        AAsm::RemovePlant(AGetPlantPtr(Row, Col, AMAGNET_SHROOM));
-        ClickSunPlantCd(MousePlant, Row, Col);
-        break;
-    case ASPIKEROCK:
-        if (!AGetPlantPtr(Row, Col, ASPIKEWEED))
-            break;
-        AAsm::RemovePlant(AGetPlantPtr(Row, Col, ASPIKEWEED));
-        ClickSunPlantCd(MousePlant, Row, Col);
-        break;
-    case ACOB_CANNON:
-        if (!AGetPlantPtr(Row, Col, AKERNEL_PULT) || !AGetPlantPtr(Row, Col + 1, AKERNEL_PULT))
-            break;
-        AAsm::RemovePlant(AGetPlantPtr(Row, Col, AKERNEL_PULT));
-        AAsm::RemovePlant(AGetPlantPtr(Row, Col + 1, AKERNEL_PULT));
-        ClickSunPlantCd(MousePlant, Row, Col);
-        break;
-    case AIMITATOR:
-        if (MouseMPlant == AWALL_NUT && AGetPlantPtr(Row, Col, AWALL_NUT))
-            AAsm::RemovePlant(AGetPlantPtr(Row, Col, AWALL_NUT));
-        if (MouseMPlant == ATALL_NUT && AGetPlantPtr(Row, Col, ATALL_NUT))
-            AAsm::RemovePlant(AGetPlantPtr(Row, Col, ATALL_NUT));
-        if (MouseMPlant == APUMPKIN && AGetPlantPtr(Row, Col, APUMPKIN))
-            AAsm::RemovePlant(AGetPlantPtr(Row, Col, APUMPKIN));
-        ClickSunPlantCd(MouseMPlant + 49, Row, Col);
-        break;
-    default:
-        if (MousePlant == AWALL_NUT && AGetPlantPtr(Row, Col, AWALL_NUT))
-            AAsm::RemovePlant(AGetPlantPtr(Row, Col, AWALL_NUT));
-        if (MousePlant == ATALL_NUT && AGetPlantPtr(Row, Col, ATALL_NUT))
-            AAsm::RemovePlant(AGetPlantPtr(Row, Col, ATALL_NUT));
-        if (MousePlant == APUMPKIN && AGetPlantPtr(Row, Col, APUMPKIN))
-            AAsm::RemovePlant(AGetPlantPtr(Row, Col, APUMPKIN));
-        ClickSunPlantCd(MousePlant, Row, Col);
-        break;
+bool isRow6MouseGridEnabled = false;
+bool isRoofPoolPlantingEnabled = false;
+
+void __stdcall AsmCallBack0x41C5E9(AAsmCodeContext* context) {
+    if (isRow6MouseGridEnabled && (context->esi == 4 || context->esi == 5) && context->eax >= 5) {
+        context->eax = 5;
+        context->eip = 0x41C645;
     }
 }
 
-// 主体函数
+void __stdcall AsmCallBack0x40E2D4(AAsmCodeContext* context) {
+    if (!isRoofPoolPlantingEnabled)
+        return;
+    int row = static_cast<int>(context->edi) + 1;
+    int col = static_cast<int>(context->ebp) + 1;
+    if (row < 1 || row > 6 || col < 1 || col > 9)
+        return;
+    int gridIndex = (col - 1) * 6 + (row - 1);
+    if (AGetMainObject()->MRef<uint32_t>(0x168 + 4 * gridIndex) != 3)
+        return;
+    if (!AGetPlantPtr(row, col, ALILY_PAD) && !AGetPlantPtr(row, col, ACATTAIL))
+        return;
+    context->eip = 0x40E2E3;
+}
+
+
 static uint32_t MaidPhase = AMaidCheats::MC_STOP;
 static bool UISwitch = true;
 static bool ATASSwitch = false;
@@ -1900,6 +1715,7 @@ void func31() { AMRef<int>(0x6A9EC0, 0x768, 0x34) -= 5; }
 void func32() { AMRef<int>(0x6A9EC0, 0x768, 0x34) += 5; }
 void func33() { AMRef<int>(0x6A9EC0, 0x768, 0x30) -= 5; }
 void func34() { AMRef<int>(0x6A9EC0, 0x768, 0x30) += 5; }
+void func29() {}
 
 // 辅助开关
 void OneKeySwitch() {
@@ -1955,7 +1771,7 @@ void ResetGame() {
 
 // UI
 std::array<AConnectHandle, 33> keyHandles;
-std::array<AOperation, 33> funcs = {OneKeySwitch, Decelerate, Accelerate, ResetSpeed, Speed10x, SkiptoWave, Restart, func8, func9, func10, SmartAsh, func13, func14, func15, func16, func17, func18, func19, func20, func21, func22, func23, func24, func25, func26, func27, func28, PlantShovelFireForbiddenGrid, func31, func32, func33, func34, ResetGame};
+std::array<AOperation, 33> funcs = {OneKeySwitch, Decelerate, Accelerate, ResetSpeed, Speed10x, SkiptoWave, Restart, func8, func9, func10, SmartAsh, func13, func14, func15, func16, func17, func18, func19, func20, func21, func22, func23, func24, func25, func26, func27, func28, func29, func31, func32, func33, func34, ResetGame};
 std::array<APushButton*, 33> keyButtons;
 
 ALabel* infoLabel = nullptr;
@@ -3560,6 +3376,8 @@ AWindow* StagePageWindow(int pageX, int pageY) {
         for (size_t i = 0; i < RowTypeEdits.size(); ++i)
             RowTypeEdits[i]->SetText("1");
         ApplyStageModify();
+        isRow6MouseGridEnabled = true;
+        isRoofPoolPlantingEnabled = false;
         AllowSkyAmbushBox->SetCheck(true);
         settings.AllowSkyAmbush = AllowSkyAmbushBox->GetCheck();
         if (AllowSkyAmbushBox->GetCheck() && BanSkyAmbushBox->GetCheck()) {
@@ -3603,6 +3421,8 @@ AWindow* StagePageWindow(int pageX, int pageY) {
                 RowTypeEdits[i]->SetText("1");
         }
         ApplyStageModify();
+        isRow6MouseGridEnabled = true;
+        isRoofPoolPlantingEnabled = true;
         AllowSkyAmbushBox->SetCheck(true);
         settings.AllowSkyAmbush = AllowSkyAmbushBox->GetCheck();
         if (AllowSkyAmbushBox->GetCheck() && BanSkyAmbushBox->GetCheck()) {
@@ -3765,6 +3585,8 @@ AOnEnterFight({
 });
 
 AOnExitFight({
+    isRow6MouseGridEnabled = false;
+    isRoofPoolPlantingEnabled = false;
     LeftmostVisibleArea.assign(6, 10);
     for (size_t i = 0; i < keyHandles.size(); ++i)
         keyHandles[i].Stop();
@@ -3803,6 +3625,9 @@ void AScript() {
 
     // 不进家
     AInsertUniqueAsmCode(0x413400, AsmCallBack0x413400);
+
+    AInsertUniqueAsmCode(0x40E2D4, AsmCallBack0x40E2D4);
+    AInsertUniqueAsmCode(0x41C5E9, AsmCallBack0x41C5E9);
 
     fightInfoPainter.SetFontSize(17); // 波数时间，僵尸计数
     lowIndexPainter.SetFont("Arial");
