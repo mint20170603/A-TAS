@@ -4,6 +4,8 @@
 
 #define UNICODE
 #define A_TAS_VERSION 202603120330
+#include <shlobj.h>
+
 #include "AsmFunc.h"
 #include "Draw.h"
 #include "asm_insert_code/asm_insert_code.h"
@@ -17,6 +19,24 @@
 
 std::shared_ptr<A7zCompressor> compressor = nullptr;
 bool isInitSuccess = false;
+
+class ATasReplay : public AReplay {
+public:
+    void finishPlayWithoutRestore() {
+        if (_state != PLAYING)
+            return;
+        _ClearAllFiles();
+        _state = REST;
+        _infoTickRunner.Stop();
+        _tickRunner.Stop();
+        ASetUpdateWindow(true);
+    }
+
+protected:
+    virtual void _ExitFight() override { finishPlayWithoutRestore(); }
+};
+
+ATasReplay replayBatch;
 
 // 绘制进度条的painter
 MyPainter barPainter;
@@ -1841,36 +1861,84 @@ std::string GetCurTimeStr() {
 }
 
 std::string OpenFileDialog(const std::string& initPath) {
-    HMODULE hComDlg = LoadLibraryW(L"comdlg32.dll");
-    if (!hComDlg)
+    HMODULE hShell = LoadLibraryW(L"shell32.dll");
+    if (!hShell)
         return "";
 
-    typedef BOOL(WINAPI * PFN_GetOpenFileNameW)(LPOPENFILENAMEW);
-    PFN_GetOpenFileNameW pGetOpenFileNameW = (PFN_GetOpenFileNameW)GetProcAddress(hComDlg, "GetOpenFileNameW");
-    if (!pGetOpenFileNameW) {
-        FreeLibrary(hComDlg);
+    auto browseForFolder = reinterpret_cast<decltype(&SHBrowseForFolderW)>(GetProcAddress(hShell, "SHBrowseForFolderW"));
+    auto getPathFromIdList = reinterpret_cast<decltype(&SHGetPathFromIDListW)>(GetProcAddress(hShell, "SHGetPathFromIDListW"));
+    auto freeIdList = reinterpret_cast<decltype(&ILFree)>(GetProcAddress(hShell, "ILFree"));
+    if (!browseForFolder || !getPathFromIdList || !freeIdList) {
+        FreeLibrary(hShell);
         return "";
     }
 
-    wchar_t szFileName[MAX_PATH] = {};
     auto initDir = AStrToWstr(initPath);
+    BROWSEINFOW browseInfo = {};
+    browseInfo.lpszTitle = L"选择 .7z 回放文件或包含回放的文件夹";
+    browseInfo.ulFlags = BIF_BROWSEINCLUDEFILES;
+    browseInfo.lParam = reinterpret_cast<LPARAM>(initDir.c_str());
+    browseInfo.lpfn = [](HWND hwnd, UINT msg, LPARAM, LPARAM data) __stdcall -> int {
+        if (msg == BFFM_INITIALIZED)
+            SendMessageW(hwnd, BFFM_SETSELECTIONW, TRUE, data);
+        return 0;
+    };
 
-    OPENFILENAMEW openFileName = {};
-    openFileName.lStructSize = sizeof(OPENFILENAMEW);
-    openFileName.nMaxFile = MAX_PATH;
-    openFileName.lpstrFilter = L"回放文件 (*.7z)\0\0";
-    openFileName.lpstrFile = szFileName;
-    openFileName.nFilterIndex = 1;
-    openFileName.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
-    openFileName.lpstrInitialDir = initDir.c_str();
-
+    wchar_t path[MAX_PATH] = {};
     std::string result;
-    if (pGetOpenFileNameW(&openFileName)) {
-        result = AWStrToStr(openFileName.lpstrFile);
+    auto item = browseForFolder(&browseInfo);
+    if (item) {
+        if (getPathFromIdList(item, path))
+            result = AWStrToStr(path);
+        freeIdList(item);
     }
-
-    FreeLibrary(hComDlg);
+    FreeLibrary(hShell);
     return result;
+}
+
+std::vector<std::filesystem::path> replayBatchFiles;
+size_t replayBatchIndex = 0;
+
+void stopReplayBatch() {
+    if (replayBatch.GetState() != AReplay::REST)
+        replayBatch.Stop();
+    replayBatchFiles.clear();
+    replayBatchIndex = 0;
+}
+
+void startReplayBatchFile() {
+    replayBatch.SetSaveDirPath(settings.savePath);
+    replayBatch.SetMouseVisible(settings.ShowMouse);
+    replayBatch.SetInterpolate(settings.Interpolate);
+    replayBatch.SetShowInfo(settings.ShowReplayInfo);
+    compressor->SetFilePath(replayBatchFiles[replayBatchIndex].string());
+    replayBatch.StartPlay();
+}
+
+void finishReplayBatchFile() {
+    ++replayBatchIndex;
+    if (replayBatchIndex >= replayBatchFiles.size()) {
+        Info("Replay : 文件夹播放完成");
+        stopReplayBatch();
+    }
+}
+
+void startReplayBatchPlay(const std::filesystem::path& dirName) {
+    stopReplayBatch();
+    for (const auto& entry : std::filesystem::directory_iterator(dirName))
+        if (entry.is_regular_file() && entry.path().extension() == ".7z")
+            replayBatchFiles.push_back(entry.path());
+    std::sort(replayBatchFiles.begin(), replayBatchFiles.end(), [](const auto& a, const auto& b) {
+        return a.filename().string() < b.filename().string();
+    });
+    if (replayBatchFiles.empty()) {
+        Warning("Replay : 文件夹中没有 .7z");
+        return;
+    }
+    replayBatchIndex = 0;
+    startReplayBatchFile();
+    if (replayBatch.GetState() != AReplay::PLAYING)
+        stopReplayBatch();
 }
 
 constexpr static int MAIN_WIDTH = 640;
@@ -1976,15 +2044,23 @@ void CreateReplayGroup(AWindow* window, int LeftEdge, int TopEdge) {
         FightUiCheck();
         if (aReplay.GetState() != aReplay.REST)
             aReplay.Stop();
-        auto fileName = OpenFileDialog(settings.savePath);
-        if (fileName.empty())
+        auto replayPath = std::filesystem::path(OpenFileDialog(settings.savePath));
+        if (replayPath.empty())
             return;
-        compressor->SetFilePath(fileName);
-        aReplay.StartPlay();
-        Info("Replay : 开始播放");
+        if (std::filesystem::is_directory(replayPath)) {
+            startReplayBatchPlay(replayPath);
+        } else if (replayPath.extension() == ".7z") {
+            stopReplayBatch();
+            compressor->SetFilePath(replayPath.string());
+            aReplay.StartPlay();
+            Info("Replay : 开始播放");
+        } else {
+            Warning("Replay : 请选择 .7z 文件或文件夹");
+        }
     });
     startRecordBtn->Connect([=] {
         FightUiCheck();
+        stopReplayBatch();
         if (aReplay.GetState() != aReplay.REST)
             aReplay.Stop();
         compressor->SetFilePath(settings.savePath + std::string("/") + GetCurTimeStr() + ".7z");
@@ -1996,6 +2072,7 @@ void CreateReplayGroup(AWindow* window, int LeftEdge, int TopEdge) {
         func9();
     });
     stopBtn->Connect([=] {
+        stopReplayBatch();
         aReplay.Stop();
     });
 
@@ -3468,6 +3545,7 @@ AOnAfterInject({
     aReplay.SetCompressor(*compressor);
     aReplay.SetMouseVisible(settings.ShowMouse);
     aReplay.SetSaveDirPath(settings.savePath);
+    replayBatch.SetCompressor(*compressor);
 
     // 若找不到keybindings.ini，使用预设
     if (!LoadKeybindings())
@@ -3556,6 +3634,11 @@ AOnBeforeScript({
         zombieListInfo_update();
 });
 
+AOnAfterScript({
+    if (replayBatchIndex < replayBatchFiles.size() && AGetPvzBase()->GameUi() == 2)
+        ASelectCards({}, 0);
+});
+
 // 进入战斗即执行
 AOnEnterFight({
     Paused = false;
@@ -3568,7 +3651,11 @@ AOnEnterFight({
     aReplay.SetShowInfo(false);
     // ApplySpawningRulesModify();
     zombieListInfo_update();
-    if (settings.AutoRecordOnGameStart && AMRef<int>(0x6A9EC0, 0x7F8) != AAsm::CHALLENGE_ICE) {
+    if (replayBatchIndex < replayBatchFiles.size()) {
+        startReplayBatchFile();
+        if (replayBatch.GetState() != AReplay::PLAYING)
+            stopReplayBatch();
+    } else if (replayBatchFiles.empty() && settings.AutoRecordOnGameStart && AMRef<int>(0x6A9EC0, 0x7F8) != AAsm::CHALLENGE_ICE) {
         compressor->SetFilePath(settings.savePath + std::string("/") + GetCurTimeStr() + ".7z");
         aReplay.StartRecord(std::round(settings.recordTickInterval));
         Info("Replay : 开始录制");
@@ -3585,6 +3672,8 @@ AOnEnterFight({
 });
 
 AOnExitFight({
+    if (!replayBatchFiles.empty())
+        finishReplayBatchFile();
     isRow6MouseGridEnabled = false;
     isRoofPoolPlantingEnabled = false;
     LeftmostVisibleArea.assign(6, 10);
@@ -3639,7 +3728,12 @@ void AScript() {
 
     tickFight.Start([=] { DanceCheat(); JackPause(); BalloonPause(); });
     tickPainter.Start([=] { DrawInfo(); DrawIndex(); ActivationMarker.Draw(); }, ATickRunner::PAINT);
-    tickGlobal.Start([=] { WaveClockUpdate(); SmartRemove(); BalloonCaption(); }, ATickRunner::GLOBAL);
+    tickGlobal.Start([=] {
+        WaveClockUpdate(); SmartRemove(); BalloonCaption();
+        if (replayBatch.GetState() == AReplay::PLAYING && replayBatch.IsPaused()
+            && replayBatch.GetEndIdx() != INT64_MAX && replayBatch.GetPlayIdx() >= replayBatch.GetEndIdx() - 1)
+            replayBatch.finishPlayWithoutRestore();
+    }, ATickRunner::GLOBAL);
 
     ActivationMarker.Start();
 
