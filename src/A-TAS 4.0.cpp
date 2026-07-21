@@ -3712,6 +3712,13 @@ void AScript() {
     // ASetInternalLogger(ConsoleLogger);
     AMaidCheats::Phase() = MaidPhase;
 
+    // 批量回放通关后进入下一次选卡
+    AInsertUniqueAsmCode(0x452503, [](AAsmCodeContext* context) __stdcall {
+        auto* board = reinterpret_cast<AMainObject*>(context->eax);
+        if (!replayBatchFiles.empty() && board->MRef<bool>(0x55FC))
+            reinterpret_cast<void(__stdcall*)(AMainObject*)>(0x40AD60)(board);
+    });
+
     // 不进家
     AInsertUniqueAsmCode(0x413400, AsmCallBack0x413400);
 
