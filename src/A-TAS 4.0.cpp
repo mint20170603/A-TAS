@@ -11,6 +11,7 @@
 #include "asm_insert_code/asm_insert_code.h"
 #include "dsl/shorthand.h"
 #include "game_controller.h"
+#include "line_up/line_up.h"
 #include "showme/sm.h"
 #include "win32gui/main.h"
 
@@ -3525,6 +3526,48 @@ AWindow* StagePageWindow(int pageX, int pageY) {
             BanDolphinBox->SetCheck(false);
         }
         ApplySpawningRulesModify();
+    });
+
+    y += SPACE + HEIGHT;
+    x = SPACE;
+    auto getLineupBtn = window->AddPushButton("阵型->布阵码", x, y, WIDTH, HEIGHT);
+    x += WIDTH;
+    auto copyLineupBtn = window->AddPushButton("复制", x, y, 50, HEIGHT);
+    x += 50;
+    auto pasteLineupBtn = window->AddPushButton("粘贴", x, y, 50, HEIGHT);
+    x += 50;
+    auto setLineupBtn = window->AddPushButton("布阵码->阵型", x, y, WIDTH, HEIGHT);
+    x += WIDTH + SPACE;
+    window->AddLabel("预存低栈", x, y, 60, HEIGHT);
+    x += 60;
+    auto reservedSlotsEdit = window->AddEdit("0", x, y, 40, HEIGHT, ES_NUMBER | ES_CENTER);
+
+    y += SPACE + HEIGHT;
+    x = SPACE;
+    auto lineupEdit = window->AddEdit("", x, y, 4 * WIDTH + 5 * SPACE, 3 * HEIGHT + 2 * SPACE, ES_MULTILINE | ES_AUTOVSCROLL);
+
+    setLineupBtn->Connect([=] {
+        FightOrCardUiCheck();
+        if (line_up::setLineup(lineupEdit->GetText(), std::atoi(reservedSlotsEdit->GetText().c_str())))
+            Info("布阵成功");
+        else
+            Warning("布阵码或预存低栈数量无效");
+    });
+    getLineupBtn->Connect([=] {
+        FightOrCardUiCheck();
+        auto code = line_up::getLineupString();
+        if (code.empty())
+            Warning("读取阵型失败");
+        else
+            lineupEdit->SetText(code);
+    });
+    copyLineupBtn->Connect([=] {
+        SendMessage(lineupEdit->GetHwnd(), EM_SETSEL, 0, -1);
+        SendMessage(lineupEdit->GetHwnd(), WM_COPY, 0, 0);
+    });
+    pasteLineupBtn->Connect([=] {
+        SendMessage(lineupEdit->GetHwnd(), EM_SETSEL, 0, -1);
+        SendMessage(lineupEdit->GetHwnd(), WM_PASTE, 0, 0);
     });
     return window;
 }
