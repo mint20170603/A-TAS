@@ -35,32 +35,17 @@ jobs:
         if: steps.trigger.outputs.enabled == 'true'
         env:
           VERSION: ${{ steps.trigger.outputs.version }}
-        run: bash generate-release.sh "$VERSION"
-
-      - name: Commit generated manifest
-        if: steps.trigger.outputs.enabled == 'true'
-        id: commit
-        env:
-          VERSION: ${{ steps.trigger.outputs.version }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add manifest.sha256
-          if ! git diff --cached --quiet; then
-            git commit -m "generate $VERSION release files"
-            git push origin "HEAD:${GITHUB_REF_NAME}"
-          fi
-          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+        run: bash .github/scripts/generate-release.sh "$VERSION"
 
       - name: Create GitHub Release
         if: steps.trigger.outputs.enabled == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.trigger.outputs.version }}
-          TARGET: ${{ steps.commit.outputs.sha }}
+          TARGET: ${{ github.sha }}
         run: |
-          gh release create "$VERSION" A-TAS.zip manifest.sha256 \
+          gh release create "$VERSION" A-TAS-4.0.zip manifest.sha256 \
             --repo "$GITHUB_REPOSITORY" \
             --target "$TARGET" \
-            --title "A-TAS $VERSION" \
+            --title "A-TAS 4.0 $VERSION" \
             --generate-notes

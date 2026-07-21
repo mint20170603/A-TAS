@@ -1,5 +1,6 @@
 @echo off
 setlocal
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0update.ps1"
+set "APP=%~dp0app"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%APP%\update.ps1"
 if "%errorlevel%"=="2" exit /b 0
-start "" /D "%~dp0" "%~dp0A-TAS-Manager.exe"
+start "" /D "%APP%" "%APP%\A-TAS-Manager.exe"

@@ -3,7 +3,7 @@
 // 本辅助工具目前版本使用的键控注入框架应使用AvZ2 2.9.0 20260224版本，源码不保证对更旧版本AvZ的兼容性
 
 #define UNICODE
-#define A_TAS_VERSION 202607211434
+#define A_TAS_VERSION 202607212333
 #include <shlobj.h>
 
 #include "AsmFunc.h"
@@ -221,6 +221,7 @@ const std::string& GetToolPath() {
                     break;
                 }
             }
+            toolPath = std::filesystem::path(toolPath).parent_path().make_preferred().string();
             CloseHandle(handle);
             return toolPath;
         }
@@ -237,13 +238,13 @@ void SaveSettings() {
     }
     // 这里可能会导致线程不安全
     std::lock_guard lk(mtx);
-    std::ofstream outFile(GetToolPath() + "/settings.dat", std::ios::out | std::ios::binary);
+    std::ofstream outFile(GetToolPath() + "\\settings.dat", std::ios::out | std::ios::binary);
     outFile.write((char*)&settings, sizeof(settings));
     outFile.close();
 }
 
 void LoadSettings() {
-    std::ifstream inFile(GetToolPath() + "/settings.dat", std::ios::in | std::ios::binary | std::ios::ate);
+    std::ifstream inFile(GetToolPath() + "\\settings.dat", std::ios::in | std::ios::binary | std::ios::ate);
     if (!inFile)
         return;
     if (inFile.tellg() != sizeof(settings)) {
@@ -265,7 +266,7 @@ bool SaveKeybindings() {
         return false;
     // 这里可能会导致线程不安全
     std::lock_guard lk(mtx);
-    std::ofstream outFile(GetToolPath() + "/" + KEYBINDINGS_FILENAME, std::ios::out | std::ios::binary);
+    std::ofstream outFile(GetToolPath() + "\\" + KEYBINDINGS_FILENAME, std::ios::out | std::ios::binary);
     if (outFile.is_open()) {
         outFile << "A_TAS_VERSION:" << A_TAS_VERSION << std::endl;
         for (int i = 0; i < btnLabels.size(); ++i)
@@ -277,7 +278,7 @@ bool SaveKeybindings() {
 }
 
 bool LoadKeybindings() {
-    std::ifstream inFile(GetToolPath() + "/" + KEYBINDINGS_FILENAME, std::ios::in | std::ios::binary);
+    std::ifstream inFile(GetToolPath() + "\\" + KEYBINDINGS_FILENAME, std::ios::in | std::ios::binary);
     if (!inFile.is_open())
         return false;
     std::string line;
@@ -1874,7 +1875,7 @@ std::string OpenFileDialog(const std::string& initPath) {
         return "";
     }
 
-    auto initDir = AStrToWstr(initPath);
+    auto initDir = AStrToWstr(std::filesystem::path(initPath).make_preferred().string());
     BROWSEINFOW browseInfo = {};
     browseInfo.lpszTitle = L"选择 .7z 回放文件或包含回放的文件夹";
     browseInfo.ulFlags = BIF_BROWSEINCLUDEFILES;
@@ -2064,7 +2065,7 @@ void CreateReplayGroup(AWindow* window, int LeftEdge, int TopEdge) {
         stopReplayBatch();
         if (aReplay.GetState() != aReplay.REST)
             aReplay.Stop();
-        compressor->SetFilePath(settings.savePath + std::string("/") + GetCurTimeStr() + ".7z");
+        compressor->SetFilePath((std::filesystem::path(settings.savePath) / (GetCurTimeStr() + ".7z")).make_preferred().string());
         aReplay.StartRecord(std::round(settings.recordTickInterval));
         Info("Replay : 开始录制");
     });
@@ -2186,7 +2187,7 @@ void CreateReplayGroup(AWindow* window, int LeftEdge, int TopEdge) {
     x += (SPACE + WIDTH) * 2;
     auto savePathBtn = window->AddPushButton("设置", x, y, WIDTH, HEIGHT);
     savePathBtn->Connect([=] {
-        auto path = savePathEdit->GetText();
+        auto path = std::filesystem::path(savePathEdit->GetText()).make_preferred().string();
         __CheckASCII(path, Warning("您设置的保存路径: [" + path + "] 中含有非 ASCII 字符, 请将其设置为纯英文路径再次尝试");
                      savePathEdit->SetText(settings.savePath), );
         if (!std::filesystem::exists(path)) {
@@ -3578,10 +3579,13 @@ AOnAfterInject({
                  ATerminate(), );
     isInitSuccess = true;
     strcpy(settings.SpeedGears, SpeedGearsDefault.c_str());
-    strcpy(settings.savePath, GetToolPath().c_str());
+    auto replayPath = GetToolPath() + "\\replay";
+    std::filesystem::create_directories(replayPath);
+    strcpy(settings.savePath, replayPath.c_str());
     LoadSettings();
+    strcpy(settings.savePath, std::filesystem::path(settings.savePath).make_preferred().string().c_str());
 
-    compressor = std::make_shared<A7zCompressor>(GetToolPath() + "/7z.exe");
+    compressor = std::make_shared<A7zCompressor>(GetToolPath() + "\\app\\7z.exe");
 
     SetGameSpeedGears(settings.SpeedGears);
 
@@ -3699,7 +3703,7 @@ AOnEnterFight({
         if (replayBatch.GetState() != AReplay::PLAYING)
             stopReplayBatch();
     } else if (replayBatchFiles.empty() && settings.AutoRecordOnGameStart && AMRef<int>(0x6A9EC0, 0x7F8) != AAsm::CHALLENGE_ICE) {
-        compressor->SetFilePath(settings.savePath + std::string("/") + GetCurTimeStr() + ".7z");
+        compressor->SetFilePath((std::filesystem::path(settings.savePath) / (GetCurTimeStr() + ".7z")).make_preferred().string());
         aReplay.StartRecord(std::round(settings.recordTickInterval));
         Info("Replay : 开始录制");
     }
