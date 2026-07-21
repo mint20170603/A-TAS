@@ -3,7 +3,7 @@
 // 本辅助工具目前版本使用的键控注入框架应使用AvZ2 2.9.0 20260224版本，源码不保证对更旧版本AvZ的兼容性
 
 #define UNICODE
-#define A_TAS_VERSION 202607212333
+#define A_TAS_VERSION 202607212359
 #include <shlobj.h>
 
 #include "AsmFunc.h"
@@ -195,6 +195,7 @@ struct {
     bool AllowGatlingPeaZombie = false;
     bool AllowSquashZombie = false;
     bool AllowTallnutZombie = false;
+    bool RemoveBungee = false;
 
 } settings;
 
@@ -2785,6 +2786,19 @@ void zombieListInfo_update() {
     }
 }
 
+void rerollWithoutBungee() {
+    if (!settings.RemoveBungee || AGetMainObject() == nullptr)
+        return;
+    auto typeList = AGetZombieTypeList();
+    if (!typeList[ABUNGEE_ZOMBIE])
+        return;
+    std::vector<int> types;
+    for (int type = 0; type <= AGIGA_GARGANTUAR; ++type)
+        if (type != ABUNGEE_ZOMBIE && typeList[type])
+            types.push_back(type);
+    ASetZombies(types, ASetZombieMode::INTERNAL);
+}
+
 AWindow* SpawnPageWindow(int pageX, int pageY) {
     auto window = mainWindow.AddWindow(pageX, pageY);
 
@@ -2853,6 +2867,7 @@ AWindow* SpawnPageWindow(int pageX, int pageY) {
         FightOrCardUiCheck();
         AGetMainObject()->MRef<uint32_t>(0x561C) = std::stoul(spawnseedEdit->GetText(), nullptr, 16);
         InitZombieWaves();
+        rerollWithoutBungee();
         zombieListInfo_update();
         if (AGetPvzBase()->GameUi() != 2)
             return;
@@ -2863,15 +2878,20 @@ AWindow* SpawnPageWindow(int pageX, int pageY) {
     x = SPACE;
     y += HEIGHT + SPACE;
 
-    auto showZombieListBox = window->AddCheckBox("查看出怪列表", x, y, 125, 25);
+    constexpr int OPTION_WIDTH = 90;
+    constexpr int OPTION_SPACE = 4;
+    auto showZombieListBox = window->AddCheckBox("查看列表", x, y, OPTION_WIDTH, 25);
     showZombieListBox->SetCheck(settings.ZombieList);
-    x += 2 * (WIDTH + SPACE + 3);
-    auto averageSpawnBox = window->AddCheckBox("每行平均分配", x, y, 125, 25);
+    x += OPTION_WIDTH + OPTION_SPACE;
+    auto averageSpawnBox = window->AddCheckBox("平均选行", x, y, OPTION_WIDTH, 25);
     averageSpawnBox->SetCheck(settings.AverageRowSpawn);
-    x += 2 * (WIDTH + SPACE + 3);
-    auto randomTypeBox = window->AddCheckBox("随机添加种类", x, y, 125, 25);
+    x += OPTION_WIDTH + OPTION_SPACE;
+    auto randomTypeBox = window->AddCheckBox("补足种类", x, y, OPTION_WIDTH, 25);
     randomTypeBox->SetCheck(settings.RandomType);
-    x += 2 * (WIDTH + SPACE + 3);
+    x += OPTION_WIDTH + OPTION_SPACE;
+    auto removeBungeeBox = window->AddCheckBox("刷掉蹦极", x, y, OPTION_WIDTH, 25);
+    removeBungeeBox->SetCheck(settings.RemoveBungee);
+    x = SPACE + 6 * (WIDTH + SPACE + 3);
     auto averageBtn = window->AddPushButton("平均出怪", x, y, 110, 25);
     x += 2 * (WIDTH + SPACE + 3);
     auto internalBtn = window->AddPushButton("自然出怪", x, y, 110, 25);
@@ -2894,6 +2914,8 @@ AWindow* SpawnPageWindow(int pageX, int pageY) {
                 return;
             }
         }
+        if (settings.RemoveBungee)
+            std::erase(types, ABUNGEE_ZOMBIE);
         ASetZombies(types, mode);
         ::Info("出怪设置成功");
         zombieListInfo_update();
@@ -2901,6 +2923,7 @@ AWindow* SpawnPageWindow(int pageX, int pageY) {
     showZombieListBox->Connect([=] { settings.ZombieList = showZombieListBox->GetCheck(); FightOrCardUiCheck(); zombieListInfo_update(); });
     averageSpawnBox->Connect([=] { settings.AverageRowSpawn = averageSpawnBox->GetCheck(); FightOrCardUiCheck(); if (settings.AverageRowSpawn) {AAverageSpawn();} });
     randomTypeBox->Connect([=] { settings.RandomType = randomTypeBox->GetCheck(); });
+    removeBungeeBox->Connect([=] { settings.RemoveBungee = removeBungeeBox->GetCheck(); FightOrCardUiCheck(); rerollWithoutBungee(); zombieListInfo_update(); });
     averageBtn->Connect([=] { spawnFunc(ASetZombieMode::AVERAGE); });
     internalBtn->Connect([spawnFunc = std::move(spawnFunc)] { spawnFunc(ASetZombieMode::INTERNAL); });
 
@@ -3682,6 +3705,7 @@ AOnBeforeScript({
 });
 
 AOnAfterScript({
+    rerollWithoutBungee();
     if (replayBatchIndex < replayBatchFiles.size() && AGetPvzBase()->GameUi() == 2)
         ASelectCards({}, 0);
 });
