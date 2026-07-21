@@ -1,0 +1,66 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Parse release commit
+        id: trigger
+        shell: bash
+        env:
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          first_line=${COMMIT_MESSAGE%%$'\n'*}
+          if [[ $first_line =~ ^release\ ([0-9]{12})$ ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "version=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v7
+        if: steps.trigger.outputs.enabled == 'true'
+        with:
+          fetch-depth: 0
+
+      - name: Build release package
+        if: steps.trigger.outputs.enabled == 'true'
+        env:
+          VERSION: ${{ steps.trigger.outputs.version }}
+        run: bash generate-release.sh "$VERSION"
+
+      - name: Commit generated manifest
+        if: steps.trigger.outputs.enabled == 'true'
+        id: commit
+        env:
+          VERSION: ${{ steps.trigger.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add manifest.sha256
+          if ! git diff --cached --quiet; then
+            git commit -m "generate $VERSION release files"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        if: steps.trigger.outputs.enabled == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.trigger.outputs.version }}
+          TARGET: ${{ steps.commit.outputs.sha }}
+        run: |
+          gh release create "$VERSION" A-TAS.zip manifest.sha256 \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$TARGET" \
+            --title "A-TAS $VERSION" \
+            --generate-notes
