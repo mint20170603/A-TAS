@@ -3,7 +3,8 @@
 // 本辅助工具目前版本使用的键控注入框架应使用AvZ2 2.9.0 20260224版本，源码不保证对更旧版本AvZ的兼容性
 
 #define UNICODE
-#define A_TAS_VERSION 202607212359
+#define ENABLE_COMCTL32_V6
+#define A_TAS_VERSION 202607240105
 #include <shlobj.h>
 
 #include "AsmFunc.h"
