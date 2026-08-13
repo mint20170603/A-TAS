@@ -48,7 +48,7 @@ public:
     }
 
     static void AddKey(std::vector<AKey> keyVec, AConnectHandle connectHandle) {
-        _keyMap.emplace(keyVec, connectHandle);
+        _keyMap.insert_or_assign(keyVec, connectHandle);
     }
 
     static std::string KeyVecToStr(std::vector<AKey> keyVec) {
@@ -226,6 +226,10 @@ static const std::unordered_map<std::string, AKey> VirtualKeyMap = {
     {"LAUNCH_APP1", VK_LAUNCH_APP1},
     {"LAUNCH_APP2", VK_LAUNCH_APP2},
     {"OEM_1", VK_OEM_1},
+    {"OEM_PLUS", VK_OEM_PLUS},
+    {"OEM_COMMA", VK_OEM_COMMA},
+    {"OEM_MINUS", VK_OEM_MINUS},
+    {"OEM_PERIOD", VK_OEM_PERIOD},
     {"OEM_2", VK_OEM_2},
     {"OEM_3", VK_OEM_3},
     {"OEM_4", VK_OEM_4},

@@ -4,7 +4,7 @@
 
 #define UNICODE
 #define ENABLE_COMCTL32_V6
-#define A_TAS_VERSION 202607240105
+#define A_TAS_VERSION 202608132306
 #include <shlobj.h>
 
 #include "AsmFunc.h"
@@ -1810,6 +1810,139 @@ void Warning(const std::string& tip) {
     MessageBeep(MB_ICONWARNING);
 }
 
+ACheckBox* keyCaptureModeCheck = nullptr;
+WNDPROC keyEditOriginalProc = nullptr;
+size_t keyCaptureIndex = keyEdits.size();
+std::string keyCaptureOldText;
+std::vector<AKey> keyCaptureKeys;
+
+void CancelKeyCapture(bool restoreText = true) {
+    if (keyCaptureIndex == keyEdits.size())
+        return;
+    if (restoreText)
+        keyEdits[keyCaptureIndex]->SetText(keyCaptureOldText);
+    keyCaptureIndex = keyEdits.size();
+    keyCaptureKeys.clear();
+}
+
+std::string KeyName(AKey key) {
+    if (key == VK_BACK)
+        return "BACKSPACE";
+    if (key == VK_CONTROL)
+        return "CTRL";
+    if (key == VK_MENU)
+        return "ALT";
+    for (const auto& [name, value] : VirtualKeyMap)
+        if (value == key)
+            return name;
+    return {};
+}
+
+std::string KeyText(std::vector<AKey> keys) {
+    std::string text;
+    for (auto key : keys) {
+        auto name = KeyName(key);
+        if (name.empty())
+            return {};
+        text += (text.empty() ? "" : "+") + name;
+    }
+    return text;
+}
+
+LRESULT CALLBACK KeyBindingEditSubclassProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
+    auto iter = std::ranges::find_if(keyEdits, [=](AEdit* edit) { return edit != nullptr && edit->GetHwnd() == hwnd; });
+    if (iter == keyEdits.end())
+        return DefWindowProcW(hwnd, message, wParam, lParam);
+    auto index = std::distance(keyEdits.begin(), iter);
+    if (message == WM_LBUTTONDOWN && index != keyCaptureIndex && keyCaptureModeCheck != nullptr && keyCaptureModeCheck->GetCheck()) {
+        CancelKeyCapture();
+        keyCaptureIndex = index;
+        keyCaptureOldText = keyEdits[index]->GetText();
+        keyEdits[index]->SetText("请按键");
+        SetFocus(hwnd);
+        Info(std::format("正在修改{}：请按组合键，Enter确认，Esc取消", btnLabels[index]));
+        return 0;
+    }
+    if (index != keyCaptureIndex)
+        return CallWindowProcW(keyEditOriginalProc, hwnd, message, wParam, lParam);
+    if (message == WM_KILLFOCUS) {
+        CancelKeyCapture();
+        return CallWindowProcW(keyEditOriginalProc, hwnd, message, wParam, lParam);
+    }
+    if (message == WM_KEYDOWN || message == WM_SYSKEYDOWN || message == WM_LBUTTONDOWN ||
+        message == WM_RBUTTONDOWN || message == WM_MBUTTONDOWN || message == WM_XBUTTONDOWN) {
+        auto key = static_cast<AKey>(wParam);
+        if (message == WM_LBUTTONDOWN)
+            key = VK_LBUTTON;
+        else if (message == WM_RBUTTONDOWN)
+            key = VK_RBUTTON;
+        else if (message == WM_MBUTTONDOWN)
+            key = VK_MBUTTON;
+        else if (message == WM_XBUTTONDOWN)
+            key = HIWORD(wParam) == XBUTTON1 ? VK_XBUTTON1 : VK_XBUTTON2;
+        else if (key == VK_LSHIFT || key == VK_RSHIFT)
+            key = VK_SHIFT;
+        else if (key == VK_LCONTROL || key == VK_RCONTROL)
+            key = VK_CONTROL;
+        else if (key == VK_LMENU || key == VK_RMENU)
+            key = VK_MENU;
+        if (key == VK_RETURN) {
+            auto text = KeyText(keyCaptureKeys);
+            if (text.empty())
+                Warning("尚未捕获任何按键");
+            else {
+                keyEdits[index]->SetText(text);
+                keyCaptureIndex = keyEdits.size();
+                keyCaptureKeys.clear();
+                Info(std::format("{}已录入{}，请点击“全部绑定”应用", btnLabels[index], text));
+            }
+            return 0;
+        }
+        if (key == VK_ESCAPE) {
+            CancelKeyCapture();
+            Info("已取消按键修改");
+            return 0;
+        }
+        if (KeyName(key).empty()) {
+            Warning("不支持捕获此按键");
+            return 0;
+        }
+        if (std::ranges::find(keyCaptureKeys, key) == keyCaptureKeys.end())
+            keyCaptureKeys.push_back(key);
+        keyEdits[index]->SetText(KeyText(keyCaptureKeys));
+        return 0;
+    }
+    if (message == WM_CHAR || message == WM_SYSCHAR || message == WM_KEYUP || message == WM_SYSKEYUP ||
+        message == WM_LBUTTONUP || message == WM_RBUTTONUP || message == WM_MBUTTONUP ||
+        message == WM_XBUTTONUP || message == WM_CONTEXTMENU)
+        return 0;
+    return CallWindowProcW(keyEditOriginalProc, hwnd, message, wParam, lParam);
+}
+
+bool ValidateKeyBindings(const std::array<std::string, 33>& texts) {
+    for (size_t i = 0; i < texts.size(); ++i) {
+        std::vector<AKey> keys;
+        std::istringstream stream(texts[i]);
+        std::string name;
+        while (std::getline(stream, name, '+')) {
+            auto iter = VirtualKeyMap.find(ToUpper(name));
+            if (name.empty() || iter == VirtualKeyMap.end() || std::ranges::find(keys, iter->second) != keys.end()) {
+                Warning(std::format("功能{}包含无效按键{}", btnLabels[i], name));
+                return false;
+            }
+            keys.push_back(iter->second);
+        }
+    }
+    return true;
+}
+
+void SyncNativeSpacePause() {
+    *(uint8_t*)0x41B8C4 = std::ranges::any_of(keyBindings, [](const auto& binding) {
+        return ("+" + ToUpper(binding) + "+").contains("+SPACE+");
+    }) ? 0xEB
+       : 0x75;
+}
+
 #define FightUiCheck()                            \
     if (AGetPvzBase()->GameUi() != 3) {           \
         Warning("只有在战斗界面才能使用此功能!"); \
@@ -2644,6 +2777,10 @@ AWindow* KeyPageWindow(int pageX, int pageY) {
 
     for (size_t i = 0; i < keyBindings.size(); ++i) {
         keyEdits[i] = window->AddEdit(keyBindings[i], x, y, BOXWIDTH, HEIGHT, ES_AUTOHSCROLL | ES_UPPERCASE);
+        auto proc = reinterpret_cast<WNDPROC>(SetWindowLongPtrW(
+            keyEdits[i]->GetHwnd(), GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(KeyBindingEditSubclassProc)));
+        if (keyEditOriginalProc == nullptr)
+            keyEditOriginalProc = proc;
         y += SPACE + HEIGHT;
         if (i % 11 == 10 && i != 32) {
             x += 2 * SPACE + BTNWIDTH + BOXWIDTH;
@@ -2662,6 +2799,7 @@ AWindow* KeyPageWindow(int pageX, int pageY) {
             keyHandles[i].Stop();
         for (size_t i = 0; i < keyHandles.size(); ++i)
             keyHandles[i] = AConnect(keyBindings[i], funcs[i]);
+        SyncNativeSpacePause();
         Info("已绑定所有按键");
     });
 
@@ -2676,6 +2814,7 @@ AWindow* KeyPageWindow(int pageX, int pageY) {
             keyHandles[i].Stop();
         for (size_t i = 0; i < keyHandles.size(); ++i)
             keyHandles[i] = AConnect(keyBindings[i], funcs[i]);
+        SyncNativeSpacePause();
         for (size_t i = 0; i < keyEdits.size(); ++i)
             keyEdits[i]->SetText("");
         Info("已将所有按键解除绑定");
@@ -2692,6 +2831,7 @@ AWindow* KeyPageWindow(int pageX, int pageY) {
             keyHandles[i].Stop();
         for (size_t i = 0; i < keyHandles.size(); ++i)
             keyHandles[i] = AConnect(keyBindings[i], funcs[i]);
+        SyncNativeSpacePause();
         for (size_t i = 0; i < keyEdits.size(); ++i)
             keyEdits[i]->SetText(keyDefaults[i]);
         Info("已将所有按键初始化");
@@ -2702,10 +2842,20 @@ AWindow* KeyPageWindow(int pageX, int pageY) {
     // 导入配置文件
     auto loadSettingsBtn = window->AddPushButton("导入按键配置", x, y, 100, HEIGHT);
     loadSettingsBtn->Connect([=] {
+        auto oldBindings = keyBindings;
         if (!LoadKeybindings()) {
             ::Info("未找到按键配置文件，导入失败！");
             return;
         }
+        if (!ValidateKeyBindings(keyBindings)) {
+            keyBindings = oldBindings;
+            return;
+        }
+        for (size_t i = 0; i < keyHandles.size(); ++i)
+            keyHandles[i].Stop();
+        for (size_t i = 0; i < keyHandles.size(); ++i)
+            keyHandles[i] = AConnect(keyBindings[i], funcs[i]);
+        SyncNativeSpacePause();
         for (size_t i = 0; i < keyEdits.size(); ++i)
             keyEdits[i]->SetText(keyBindings[i]);
         ::Info("按键配置文件导入成功！");
@@ -2720,6 +2870,14 @@ AWindow* KeyPageWindow(int pageX, int pageY) {
             ::Info("按键配置文件导出成功！保存在A-TAS的根目录下，文件名为keybindings.ini");
         else
             ::Info("按键配置文件导出失败！");
+    });
+
+    x += saveSettingsBtn->GetWidth() + SPACE;
+
+    keyCaptureModeCheck = window->AddCheckBox("按键绑定模式", x, y, 100, HEIGHT);
+    AConnect(keyCaptureModeCheck, [=] {
+        for (auto* edit : keyEdits)
+            SendMessageW(edit->GetHwnd(), EM_SETREADONLY, keyCaptureModeCheck->GetCheck(), 0);
     });
 
     return window;
@@ -3621,6 +3779,7 @@ AOnAfterInject({
     // 若找不到keybindings.ini，使用预设
     if (!LoadKeybindings())
         keyBindings = keyDefaults;
+    SyncNativeSpacePause();
 
     // 点击选卡僵尸不进图鉴
     *(uint8_t*)0x486B0A = 0xEB;
@@ -3697,6 +3856,7 @@ AOnAfterInject({
 });
 
 AOnBeforeExit({
+    *(uint8_t*)0x41B8C4 = 0x75;
     SaveSettings();
 });
 
